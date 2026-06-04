@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Power BI - IDP Monitoring</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .iframe-container {
+            padding: 20px;
+        }
+
+        iframe {
+            width: 100%;
+            height: 600px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 Dashboard Power BI</h1>
+            <p>Suivi des Contrats SAP P2P</p>
+        </header>
+
+        <div class="iframe-container">
+            <iframe 
+                title="Tableau_Bord_Suivi_Contrats_[DATE]" 
+                src="https://app.powerbi.com/reportEmbed?reportId=a3b6aa0f-43e0-45a7-882f-82fdc64055b4&autoAuth=true&ctid=5047bca2-da88-442e-a09a-d9b8af692adc" 
+                frameborder="0" 
+                allowFullScreen="true">
+            </iframe>
+        </div>
+    </div>
+</body>
+</html>

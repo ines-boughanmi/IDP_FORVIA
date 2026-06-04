@@ -1,0 +1,5 @@
+{
+  "status": "blocked",
+  "reason": "Dependencies missing - tests not executed",
+  "details": {}
+}

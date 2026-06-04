@@ -1,0 +1,116 @@
+﻿====================================================================================================
+DETAILED AGGREGATION ANALYSIS - Why Fraud Cases Disappear
+====================================================================================================
+
+[LOADING] Documents1.csv (240.5 MB)...
+[OK] 616,800 rows x 59 columns
+
+====================================================================================================
+ANALYSIS 1: Distribution of E and Q in RAW DATA (before aggregation)
+====================================================================================================
+
+Records with E (GR): 310,408
+Records with Q (IR): 303,027
+Records with both E and Q: 0
+Records with E only: 310,408
+Records with Q only: 303,027
+
+----------------------------------------------------------------------------------------------------
+SAMPLES: Q-only records (IR without GR in raw data)
+----------------------------------------------------------------------------------------------------
+
+Total Q-only records in raw data: 303,027
+
+Sample Q-only records (first 10):
+    purchasing_document_|_ebeln  item_|_ebelp po_history_category_|_bewtp  amount_|_wrbtr  invoice_value_|_reewr  supplier_|_lifnr
+0                    4503952108             1                           Q           105.0                  105.0            100162
+3                    4503749369             1                           Q          2046.0                 2046.0            100162
+8                    4504803416             1                           Q            85.0                   85.0            100162
+10                   4504648212             1                           Q          2310.0                 2310.0            100162
+13                   4504057976             1                           Q          2046.0                 2046.0            100162
+16                   4504546210             1                           Q          1035.0                 1035.0            100162
+18                   4504535435             1                           Q          2310.0                 2310.0            100162
+20                   4504518935             1                           Q          1000.0                 1000.0            100162
+21                   4504518935             2                           Q            40.0                   40.0            100162
+24                   4504419318             1                           Q           315.0                  315.0            100162
+
+====================================================================================================
+ANALYSIS 2: What happens to Q-only records during aggregation?
+====================================================================================================
+
+Q-only records, grouped by (PO, Item):
+  Groups (PO+Item pairs): 283,027
+  Total Q-only records: 303,027
+
+[CHECKING] Do these (PO, Item) pairs ALSO have E records?
+  (PO, Item) pairs with BOTH E and Q: 283,027
+  (PO, Item) pairs with ONLY Q (no E): 0
+
+  -> ALL Q-only records come from (PO, Item) pairs that ALSO have E records
+  -> This explains why there are NO IR-only cases after aggregation!
+  -> During aggregation, E and Q get combined (both=True)
+
+====================================================================================================
+ANALYSIS 3: Does the same PO+Item appear in BOTH E and Q records?
+====================================================================================================
+
+After aggregation by (PO, Item):
+  Total (PO, Item) pairs: 295,651
+
+Distribution of E/Q combinations:
+  has_e=1, has_q=0:  12,624 ( 4.27%) - Only E (GR only)
+  has_e=1, has_q=1: 283,027 (95.73%) - Both E and Q
+
+[KEY FINDING] IR-only (PO, Item) pairs after aggregation: 0
+
+!!! THIS IS THE ROOT CAUSE !!!
+In the source data, EVERY (PO, Item) that has Q (IR) ALSO has E (GR)
+There are NO (PO, Item) combinations with IR but without GR
+Therefore, INVOICED_NOT_DELIVERED (fraud) = 0 after aggregation
+
+====================================================================================================
+ANALYSIS 4: Temporal patterns - maybe GR comes AFTER IR?
+====================================================================================================
+
+[INVESTIGATING] Q-only records - does GR exist for same (PO, Item)?
+
+Example Q-only record:
+  PO: 4503952108, Item: 1
+  po_history_category_|_bewtp: Q
+
+  Total records for this (PO, Item): 2
+  With E: 1
+  With Q: 1
+
+  -> YES! This (PO, Item) HAS E records too!
+  -> So after aggregation, this becomes: has_gr=1, has_ir=1 (matched)
+  -> NOT fraud
+
+====================================================================================================
+ANALYSIS 5: Could this be business logic?
+====================================================================================================
+python : Traceback (most recent call last):
+At line:1 char:31
++ ... tivate.ps1; python src/scripts/DETAILED_AGGREGATION_ANALYSIS.py 2>&1  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Traceback (most recent call last) 
+   ::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  File "C:\Users\1boughai\Desktop\IDP-Monitoring-Project\src\scripts\DETAILED_A
+GGREGATION_ANALYSIS.py", line 168, in <module>
+    print("""
+    ~~~~~^^^^
+    HYPOTHESIS: The SAP system enforces 3-way matching (PO \u2192 GR \u2192 IR)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<12 lines>...
+      - Maybe the data doesn't capture the full transaction history
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    """)
+    ^^^^
+  File "C:\Users\1boughai\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings
+\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in 
+position 57: character maps to <undefined>

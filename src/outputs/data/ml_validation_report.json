@@ -1,0 +1,54 @@
+{
+  "timestamp": "2026-05-27T21:50:12.425426",
+  "data_file": "documents_with_labels_and_features_features_20260525_162427.csv",
+  "total_samples": 294722,
+  "train_samples": 235777,
+  "test_samples": 58945,
+  "features": 40,
+  "label_column": "anomaly_type",
+  "labels": {
+    "ACCOUNTING": 0,
+    "DATA": 1,
+    "NONE": 2
+  },
+  "fraud_detection": {
+    "fraud_column": "INVOICED_NOT_DELIVERED",
+    "fraud_count": 0,
+    "fraud_pct": 0.0,
+    "status": "CRITICAL - NO FRAUD DETECTED"
+  },
+  "models_trained": [
+    "logistic_regression",
+    "random_forest",
+    "xgboost",
+    "lightgbm"
+  ],
+  "model_results": {
+    "logistic_regression": {
+      "cv_mean": 0.9999985232277803,
+      "cv_std": 2.953544439421307e-06,
+      "train_score": 1.0,
+      "test_score": 1.0
+    },
+    "random_forest": {
+      "cv_mean": 1.0,
+      "cv_std": 0.0,
+      "train_score": 1.0,
+      "test_score": 1.0
+    },
+    "xgboost": {
+      "cv_mean": 1.0,
+      "cv_std": 0.0,
+      "train_score": 1.0,
+      "test_score": 1.0
+    },
+    "lightgbm": {
+      "cv_mean": 1.0,
+      "cv_std": 0.0,
+      "train_score": 1.0,
+      "test_score": 1.0
+    }
+  },
+  "best_model": "logistic_regression",
+  "best_test_score": 1.0
+}

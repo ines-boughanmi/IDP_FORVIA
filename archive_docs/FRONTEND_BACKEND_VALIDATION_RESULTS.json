@@ -1,0 +1,242 @@
+{
+  "checks": [
+    {
+      "name": "frontend/.env exists",
+      "ok": true,
+      "value": "VITE_API_BASE_URL=http://127.0.0.1:8000"
+    },
+    {
+      "name": "backendApi uses import.meta.env.VITE_API_BASE_URL",
+      "ok": false,
+      "value": null
+    },
+    {
+      "name": "POST /auth/login",
+      "status": 200,
+      "ok": true,
+      "sample": {
+        "status": "success",
+        "data": {
+          "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJ1c2VybmFtZSI6ImFkbWluIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzgwMjQxODYwLCJpYXQiOjE3ODAyMzgyNjB9.Ahd_3ikWDVfaW8HfuaqdQF16mApp0KUmImfpBWRohpM",
+          "token_type": "bearer"
+        },
+        "metadata": {
+          "expires_in": 3600
+        }
+      }
+    },
+    {
+      "name": "GET /auth/me",
+      "status": 200,
+      "ok": true,
+      "sample": {
+        "status": "success",
+        "data": {
+          "user": {
+            "id": 1,
+            "username": "admin",
+            "email": "admin@example.com",
+            "role": "admin"
+          }
+        },
+        "metadata": {}
+      }
+    },
+    {
+      "name": "401 unauthorized check",
+      "status": 401,
+      "ok": true,
+      "sample": {
+        "status": "error",
+        "message": "Not authenticated",
+        "code": {
+          "WWW-Authenticate": "Bearer"
+        }
+      }
+    },
+    {
+      "name": "dashboard",
+      "status": 200,
+      "ok": true,
+      "metadata": {},
+      "keys": [
+        "total_transactions",
+        "total_suppliers",
+        "avg_transaction_risk",
+        "avg_supplier_risk",
+        "critical_transactions",
+        "high_transactions",
+        "critical_suppliers",
+        "high_risk_suppliers",
+        "anomaly_rate",
+        "top_risk_supplier"
+      ]
+    },
+    {
+      "name": "alerts_high_risk",
+      "status": 200,
+      "ok": true,
+      "metadata": {
+        "count": 103148
+      },
+      "keys": [
+        "alerts"
+      ]
+    },
+    {
+      "name": "suppliers_page1",
+      "status": 200,
+      "ok": true,
+      "metadata": {},
+      "keys": [
+        "suppliers"
+      ]
+    },
+    {
+      "name": "transactions_page1",
+      "status": 200,
+      "ok": true,
+      "metadata": {
+        "total": 294722,
+        "count": 20,
+        "page": 1,
+        "page_size": 20
+      },
+      "keys": [
+        "transactions"
+      ]
+    },
+    {
+      "name": "analytics_overview",
+      "status": 200,
+      "ok": true,
+      "metadata": {},
+      "keys": [
+        "total_transactions",
+        "total_suppliers",
+        "avg_transaction_risk",
+        "avg_supplier_risk",
+        "critical_transactions",
+        "high_transactions",
+        "critical_suppliers",
+        "high_risk_suppliers",
+        "anomaly_rate",
+        "top_risk_supplier"
+      ]
+    },
+    {
+      "name": "supplier360",
+      "status": 200,
+      "ok": true,
+      "sample_keys": [
+        "supplier_profile",
+        "risk_score",
+        "risk_level",
+        "cluster",
+        "behavior_metrics",
+        "anomaly_metrics",
+        "risk_explanation",
+        "transaction_statistics",
+        "recent_transactions"
+      ]
+    },
+    {
+      "name": "transaction360",
+      "status": 200,
+      "ok": true,
+      "sample_keys": [
+        "transaction_profile",
+        "risk_components",
+        "supplier_information",
+        "explanation",
+        "alerts"
+      ]
+    },
+    {
+      "name": "suppliers page 1",
+      "status": 200,
+      "ok": true,
+      "total": null,
+      "count": null,
+      "page": null,
+      "page_size": null
+    },
+    {
+      "name": "transactions page 1",
+      "status": 200,
+      "ok": true,
+      "total": 294722,
+      "count": 20,
+      "page": 1,
+      "page_size": 20
+    },
+    {
+      "name": "suppliers page 2",
+      "status": 200,
+      "ok": true,
+      "total": null,
+      "count": null,
+      "page": null,
+      "page_size": null
+    },
+    {
+      "name": "transactions page 2",
+      "status": 200,
+      "ok": true,
+      "total": 294722,
+      "count": 20,
+      "page": 2,
+      "page_size": 20
+    },
+    {
+      "name": "suppliers page 10",
+      "status": 200,
+      "ok": true,
+      "total": null,
+      "count": null,
+      "page": null,
+      "page_size": null
+    },
+    {
+      "name": "transactions page 10",
+      "status": 200,
+      "ok": true,
+      "total": 294722,
+      "count": 20,
+      "page": 10,
+      "page_size": 20
+    },
+    {
+      "name": "performance snapshot",
+      "ok": true,
+      "dashboard_s": 0.0821,
+      "transactions_s": 0.1806,
+      "suppliers_s": 0.0136
+    },
+    {
+      "name": "404 supplier missing",
+      "status": 404,
+      "ok": true,
+      "sample": {
+        "status": "error",
+        "message": "Supplier 999999999 not found",
+        "code": null
+      }
+    }
+  ],
+  "timings": {
+    "auth_login_s": 0.2062,
+    "auth_me_s": 0.01,
+    "dashboard": 0.1193,
+    "alerts_high_risk": 4.7258,
+    "suppliers_page1": 0.0258,
+    "transactions_page1": 0.231,
+    "analytics_overview": 0.1007,
+    "supplier360": 0.0206,
+    "transaction360": 0.0383,
+    "dashboard_load_s": 0.0821,
+    "transactions_load_s": 0.1806,
+    "supplier_load_s": 0.0136
+  },
+  "errors": []
+}

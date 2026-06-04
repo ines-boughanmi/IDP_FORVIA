@@ -1,0 +1,1 @@
+API Pydantic models live in `api/models/schemas.py`. Use these schemas for request/response validation.

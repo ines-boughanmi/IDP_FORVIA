@@ -1,0 +1,299 @@
+{% extends 'base.html' %}
+
+{% block title %}Power BI Dashboard - IDP Monitoring{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dashboard-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #f0f0f0;
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+
+    .dashboard-title {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        flex: 1;
+    }
+
+    .dashboard-title h2 {
+        color: #333;
+        font-size: 1.8em;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .status-badge {
+        display: inline-block;
+        background: #4caf50;
+        color: white;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 0.9em;
+        font-weight: bold;
+    }
+
+    .status-badge.offline {
+        background: #f44336;
+    }
+
+    .dashboard-info {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+
+    .info-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .info-card h3 {
+        font-size: 0.9em;
+        opacity: 0.9;
+        margin-bottom: 5px;
+    }
+
+    .info-card .value {
+        font-size: 1.5em;
+        font-weight: bold;
+    }
+
+    .refresh-button, .btn {
+        background: #667eea;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 1em;
+        transition: background 0.3s;
+        text-decoration: none;
+        display: inline-block;
+    }
+
+    .refresh-button:hover, .btn:hover {
+        background: #764ba2;
+    }
+
+    .btn.secondary {
+        background: #ff9800;
+    }
+
+    .btn.secondary:hover {
+        background: #e68900;
+    }
+
+    .auth-notice {
+        background: #fff3cd;
+        border: 1px solid #ffc107;
+        color: #856404;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+        display: none;
+    }
+
+    .auth-notice.show {
+        display: block;
+    }
+
+    .auth-notice h4 {
+        margin-top: 0;
+        margin-bottom: 10px;
+    }
+
+    .auth-buttons {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .iframe-error {
+        background: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+        display: none;
+        text-align: center;
+    }
+
+    .iframe-error.show {
+        display: block;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+    <div class="dashboard-title">
+        <h2>Tableau de Bord Power BI</h2>
+        <span class="status-badge">✓ En ligne</span>
+    </div>
+    <div class="header-actions">
+        <button class="refresh-button" onclick="location.reload()">🔄 Actualiser</button>
+        <a href="{{ direct_url }}" target="_blank" class="btn secondary">🔗 Ouvrir dans Power BI</a>
+    </div>
+</div>
+
+<div class="dashboard-info">
+    <div class="info-card">
+        <h3>📋 ID du Rapport</h3>
+        <div class="value">{{ report_id|slice:":8" }}...</div>
+    </div>
+    <div class="info-card">
+        <h3>🏢 Tenant ID</h3>
+        <div class="value">{{ tenant_id|slice:":8" }}...</div>
+    </div>
+    <div class="info-card">
+        <h3>🌐 Source</h3>
+        <div class="value">Power BI Cloud</div>
+    </div>
+</div>
+
+<div class="auth-notice" id="auth-notice">
+    <h4>ℹ️ Important - Lire Attentivement</h4>
+    <p>Power BI Embedded via iframe nécessite une authentification spéciale. <strong>La meilleure solution est d'utiliser le bouton ci-dessus "Ouvrir dans Power BI".</strong></p>
+    <p style="margin-top: 10px; color: #555;">Si vous préférez voir le rapport dans cette page :</p>
+    <div class="auth-buttons">
+        <a href="https://app.powerbi.com/singleSignOn?redirectUrl=https://app.powerbi.com/groups/me/reports/{{ report_id }}" target="_blank" class="btn">🔐 Se Connecter à Power BI</a>
+        <button class="btn secondary" onclick="reloadIframe()">🔃 Réessayer</button>
+    </div>
+</div>
+
+<div class="iframe-error" id="iframe-error">
+    <h4>❌ Erreur de Chargement</h4>
+    <p>Le dashboard n'a pas pu charger automatiquement. Cliquez sur les boutons ci-dessous pour accéder au rapport.</p>
+    <div class="auth-buttons">
+        <a href="{{ direct_url }}" target="_blank" class="btn secondary">🔗 Ouvrir dans Power BI</a>
+        <button class="btn" onclick="location.reload()">🔄 Réessayer</button>
+    </div>
+</div>
+
+<div class="iframe-container">
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p>Chargement du tableau de bord...</p>
+    </div>
+    <iframe 
+        id="powerbi-iframe"
+        title="Tableau_Bord_Suivi_Contrats_[DATE]" 
+        src="{{ embed_url }}" 
+        frameborder="0" 
+        allowFullScreen="true"
+        sandbox="allow-same-origin allow-forms allow-popups allow-scripts"
+        onload="handleIframeLoad()"
+        onerror="handleIframeError()">
+    </iframe>
+</div>
+
+<script>
+    // Timeout for loading
+    const LOADING_TIMEOUT = 30000; // 30 seconds
+    let loadingTimer = null;
+
+    // Handle iframe load
+    function handleIframeLoad() {
+        console.log('✓ Iframe chargé');
+        document.getElementById('loading').style.display = 'none';
+        clearTimeout(loadingTimer);
+    }
+
+    // Handle iframe error
+    function handleIframeError() {
+        console.error('✗ Erreur Iframe');
+        showAuthNotice();
+        clearTimeout(loadingTimer);
+    }
+
+    // Show authentication notice
+    function showAuthNotice() {
+        const authNotice = document.getElementById('auth-notice');
+        if (authNotice) {
+            authNotice.classList.add('show');
+        }
+        document.getElementById('loading').style.display = 'none';
+    }
+
+    // Open Power BI Sign In
+    function openPowerBISignIn() {
+        window.open('https://app.powerbi.com/singleSignOn?redirectUrl={{ direct_url }}', 'PowerBISignIn', 'width=800,height=600');
+        setTimeout(() => {
+            reloadIframe();
+        }, 2000);
+    }
+
+    // Reload iframe
+    function reloadIframe() {
+        const iframe = document.getElementById('powerbi-iframe');
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('auth-notice').classList.remove('show');
+        iframe.src = iframe.src;
+        
+        // Reset timeout
+        clearTimeout(loadingTimer);
+        loadingTimer = setTimeout(() => {
+            showAuthNotice();
+        }, LOADING_TIMEOUT);
+    }
+
+    // Monitor iframe loading on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        const iframe = document.getElementById('powerbi-iframe');
+        
+        // Set loading timeout
+        loadingTimer = setTimeout(() => {
+            console.warn('⚠️ Timeout: Iframe n\'a pas chargé dans les 30 secondes');
+            showAuthNotice();
+        }, LOADING_TIMEOUT);
+
+        // Handle cross-origin errors
+        try {
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+        } catch (e) {
+            console.warn('⚠️ Accès Cross-Origin: Le navigateur bloque l\'accès au contenu de l\'iframe');
+        }
+
+        // Keyboard shortcut for refresh (Ctrl+R or Cmd+R)
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
+                e.preventDefault();
+                reloadIframe();
+            }
+        });
+
+        // Check if iframe contains sign-in prompt
+        setTimeout(() => {
+            try {
+                const iframeBody = iframe.contentDocument?.body;
+                if (iframeBody && iframeBody.innerHTML.includes('Sign in')) {
+                    console.info('ℹ️ Formulaire de connexion détecté');
+                    showAuthNotice();
+                }
+            } catch (e) {
+                // Expected for cross-origin
+            }
+        }, 5000);
+    });
+
+    // Log iframe source
+    console.log('📊 Power BI Report URL:', '{{ embed_url }}');
+    console.log('🔗 Direct URL:', '{{ direct_url }}');
+</script>
+{% endblock %}
