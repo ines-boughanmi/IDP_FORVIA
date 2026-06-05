@@ -81,11 +81,69 @@ export async function fetchAnomalySummary() {
   return request<AnomalySummary>('/api/analytics/anomaly-summary');
 }
 
-export async function fetchChatbotQuery(question: string) {
-  return request<{ answer: string; results: Array<Record<string, unknown>> }>('/api/chatbot/query', {
+export async function fetchChatbotStatus() {
+  return request<{ ready: boolean; building: boolean; documents: number; sources: string[] }>(
+    '/api/chatbot/status',
+  );
+}
+
+export async function fetchChatbotQuery(question: string, conversationId?: number | null) {
+  return request<{
+    answer: string;
+    sources: string[];
+    confidence: number;
+    conversation_id: number | null;
+  }>('/api/chatbot/query', {
     method: 'POST',
-    body: JSON.stringify({ question }),
+    body: JSON.stringify({ question, conversation_id: conversationId ?? null }),
   });
+}
+
+export async function triggerChatbotReindex() {
+  return request<{ status: string; message: string }>('/api/chatbot/reindex', {
+    method: 'POST',
+  });
+}
+
+export type ConversationSummary = {
+  id: number;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  message_count: number;
+};
+
+export type ConversationMessage = {
+  id: number;
+  role: 'user' | 'assistant';
+  content: string;
+  sources: string[];
+  confidence: number;
+  created_at: string;
+};
+
+export type ConversationDetail = ConversationSummary & {
+  messages: ConversationMessage[];
+};
+
+export async function fetchConversations(): Promise<ConversationSummary[]> {
+  return request<ConversationSummary[]>('/api/chatbot/conversations') as unknown as Promise<ConversationSummary[]>;
+}
+
+export async function fetchConversationDetail(id: number): Promise<ConversationDetail> {
+  return request<ConversationDetail>(`/api/chatbot/conversations/${id}`) as unknown as Promise<ConversationDetail>;
+}
+
+export async function deleteConversation(id: number): Promise<{ deleted: number }> {
+  return request<{ deleted: number }>(`/api/chatbot/conversations/${id}`, {
+    method: 'DELETE',
+  }) as unknown as Promise<{ deleted: number }>;
+}
+
+export async function deleteAllConversations(): Promise<{ deleted: number }> {
+  return request<{ deleted: number }>('/api/chatbot/conversations', {
+    method: 'DELETE',
+  }) as unknown as Promise<{ deleted: number }>;
 }
 export async function searchTransactions(params: {
   supplierId?: string;

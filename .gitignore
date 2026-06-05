@@ -72,3 +72,8 @@ src/data/raw/
 src/data/processed/
 src/data/products/
 src/data
+
+.env
+chroma_db/
+*.zip
+src/data/

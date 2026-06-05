@@ -1,279 +1,289 @@
-"""
-Chatbot router — clean, resilient, always returns {answer, results}.
-
-Flow:
-  1. RAG vector search  → top-5 relevant records
-  2. Deterministic fallback (EnterpriseApiService) if RAG returns nothing
-  3. Ollama LLM (llama3.2:1b) for natural-language answer
-  4. Structured deterministic answer if Ollama is unavailable
-"""
 from __future__ import annotations
 
+import json
 import logging
-import os
-import re
-from typing import Any, Dict, List
+import threading
+from typing import Any, Dict, List, Optional
 
-import requests
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
-from ..services.chatbot_service import ChatbotService
-from ..services.data_loader import DataLoaderService
-from ..services.enterprise_service import EnterpriseApiService
-from ..services.rag_service import RAGService
+from ..auth.dependencies import get_current_user
+from ..auth.schemas import User
+from ..db.session import SessionLocal
+from ..db import crud
+from ..services.groq_service import generate_answer
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+_NO_INFO = (
+    "I do not have enough information in the available datasets to answer that question."
+)
 
-# ── helpers ───────────────────────────────────────────────────────────────────
 
-def _ollama(prompt: str) -> str:
-    """Call local Ollama and return text, or '' on any failure."""
-    url     = os.getenv("OLLAMA_URL",   "http://127.0.0.1:11434/api/generate")
-    model   = os.getenv("OLLAMA_MODEL", "llama3.2:1b")
+# ---------------------------------------------------------------------------
+# Auth helpers
+# ---------------------------------------------------------------------------
+
+def _user_from_request(request: Request) -> Optional[User]:
+    """Extract and verify the JWT from the Authorization header directly."""
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        logger.debug("_user_from_request: no Bearer token in header")
+        return None
+    token = auth[7:].strip()
+    if not token:
+        return None
     try:
-        resp = requests.post(
-            url,
-            json={"model": model, "prompt": prompt, "stream": False},
-            timeout=15,
-        )
-        if not resp.ok:
-            logger.warning("Ollama HTTP %s", resp.status_code)
-            return ""
-        data = resp.json()
-        # Ollama non-stream: {"response": "..."}
-        return str(data.get("response") or data.get("text") or data.get("output") or "")
+        creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+        user = get_current_user(creds)
+        logger.debug("_user_from_request: authenticated as %s (id=%d)", user.username, user.id)
+        return user
     except Exception as exc:
-        logger.info("Ollama unavailable (%s) — using deterministic fallback", exc)
-        return ""
+        logger.warning("_user_from_request: auth failed — %s", exc)
+        return None
 
 
-def _deterministic_answer(question: str, results: List[Dict]) -> str:
-    """Build a concise structured answer from retrieved records."""
-    q = question.lower()
-    suppliers    = [r["metadata"] for r in results if r["metadata"].get("type") == "supplier"]
-    transactions = [r["metadata"] for r in results if r["metadata"].get("type") == "transaction"]
-
-    lines: List[str] = []
-
-    if suppliers:
-        lines.append("**Top risk suppliers identified:**")
-        for s in sorted(suppliers, key=lambda x: float(x.get("risk_score") or 0), reverse=True)[:5]:
-            sid   = s.get("supplier_id", "N/A")
-            name  = s.get("supplier_name", "")
-            score = s.get("risk_score", "N/A")
-            level = s.get("risk_level", "N/A")
-            cluster = s.get("cluster_label", "")
-            line = f"• Supplier {sid}"
-            if name:
-                line += f" ({name})"
-            line += f" — Risk Score: {score}, Level: {level}"
-            if cluster:
-                line += f", Cluster: {cluster}"
-            lines.append(line)
-
-    if transactions:
-        lines.append("\n**Top risk transactions identified:**")
-        for t in sorted(transactions, key=lambda x: float(x.get("risk_score") or 0), reverse=True)[:5]:
-            tid   = t.get("transaction_id", "N/A")
-            score = t.get("risk_score", "N/A")
-            level = t.get("risk_level", "N/A")
-            amt   = t.get("amount", "N/A")
-            anom  = t.get("anomaly_classification") or ""
-            line  = f"• Transaction {tid} — Risk Score: {score}, Level: {level}, Amount: {amt}"
-            if anom:
-                line += f", Anomaly: {anom}"
-            lines.append(line)
-
-    if not lines:
-        # generic executive summary
-        lines.append(
-            "Based on the SAP P2P risk dataset, no specific records matched your query. "
-            "Please try asking about 'high risk suppliers', 'critical transactions', "
-            "'anomalies detected', or 'overall risk summary'."
-        )
-
-    return "\n".join(lines)
-
-
-def _build_prompt(question: str, results: List[Dict]) -> str:
-    context_lines = []
-    for r in results[:5]:
-        m = r["metadata"]
-        doc = r.get("document", "")
-        context_lines.append(doc)
-
-    context = "\n".join(context_lines) if context_lines else "No specific records retrieved."
-
-    return (
-        "You are an expert SAP Procure-to-Pay (P2P) Risk Analyst.\n"
-        "Answer in professional business English using procurement and risk management terminology.\n\n"
-        f"Relevant data context:\n{context}\n\n"
-        f"User question: {question}\n\n"
-        "Instructions:\n"
-        "- Give a concise, structured answer (3-5 sentences max).\n"
-        "- Reference specific risk scores, levels, or anomaly types from the context when available.\n"
-        "- If context shows critical or high-risk items, highlight them explicitly.\n"
-        "- End with one actionable recommendation if appropriate.\n"
-    )
-
-
-# ── deterministic fallback from EnterpriseApiService ─────────────────────────
-
-def _enterprise_fallback(
-    q: str,
-    data_loader: DataLoaderService,
-    enterprise: EnterpriseApiService,
-) -> List[Dict]:
-    """Return a structured results list from deterministic queries."""
-    q_lower = q.lower()
-    results: List[Dict] = []
-
+def _required_user(
+    credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer()),
+) -> User:
     try:
-        if any(w in q_lower for w in ("supplier", "fournisseur", "vendor")):
-            m = re.search(r"\b(\d{1,6})\b", q)
-            if m:
-                overview = enterprise.supplier_overview(int(m.group(1)))
-                if overview:
-                    results.append({"document": "supplier_overview",
-                                    "metadata": {**overview.get("supplier_profile", {}), "type": "supplier"}})
-            else:
-                for sup in enterprise.top_risk_suppliers(limit=5):
-                    results.append({"document": "top_supplier",
-                                    "metadata": {**sup, "type": "supplier"}})
-
-        elif any(w in q_lower for w in ("transaction", "txn", "invoice", "po")):
-            m = re.search(r"\b(\d{4,12})\b", q)
-            if m:
-                overview = enterprise.transaction_overview(int(m.group(1)))
-                if overview:
-                    results.append({"document": "transaction_overview",
-                                    "metadata": {**overview.get("transaction_profile", {}), "type": "transaction"}})
-            else:
-                for txn in data_loader.get_high_risk_transactions(limit=5):
-                    results.append({"document": "top_transaction",
-                                    "metadata": {**txn, "type": "transaction"}})
-
-        elif any(w in q_lower for w in ("anomal", "anomalie", "detect")):
-            summary = enterprise.anomaly_summary()
-            results.append({"document": "anomaly_summary", "metadata": summary})
-            for txn in data_loader.get_high_risk_transactions(limit=3):
-                results.append({"document": "anomalous_txn",
-                                "metadata": {**txn, "type": "transaction"}})
-
-        else:
-            # executive / general
-            dashboard = enterprise.executive_dashboard()
-            results.append({"document": "executive_dashboard", "metadata": dashboard})
-            for sup in enterprise.top_risk_suppliers(limit=3):
-                results.append({"document": "top_supplier",
-                                "metadata": {**sup, "type": "supplier"}})
-
+        return get_current_user(credentials)
     except Exception:
-        logger.exception("Enterprise fallback error")
-
-    return results
+        raise HTTPException(status_code=401, detail="Authentication required")
 
 
-# ── endpoints ─────────────────────────────────────────────────────────────────
-
-@router.get("/chatbot/status")
-def chatbot_status(request: Request):
-    rag = getattr(request.app.state, "rag_service", None)
-    ready     = rag.is_ready()    if rag else False
-    doc_count = rag._doc_count    if rag else 0
-    return {"ready": ready, "doc_count": doc_count}
-
-
-@router.get("/chatbot/debug-columns")
-def debug_columns(request: Request):
-    dl  = request.app.state.data_loader
-    rag = getattr(request.app.state, "rag_service", None)
-
-    sup_info = txn_info = None
-    try:
-        if dl.suppliers_df is not None:
-            sup_info = {"shape": list(dl.suppliers_df.shape), "columns": list(dl.suppliers_df.columns)}
-    except Exception as e:
-        sup_info = {"error": str(e)}
-    try:
-        if dl.transactions_df is not None:
-            txn_info = {"shape": list(dl.transactions_df.shape), "columns": list(dl.transactions_df.columns)}
-    except Exception as e:
-        txn_info = {"error": str(e)}
-
-    return {
-        "suppliers":    sup_info,
-        "transactions": txn_info,
-        "rag": {
-            "exists":      rag is not None,
-            "ready":       rag.is_ready()   if rag else False,
-            "doc_count":   rag._doc_count   if rag else 0,
-            "built_once":  rag._built_once  if rag else False,
-        },
-    }
-
+# ---------------------------------------------------------------------------
+# Request models
+# ---------------------------------------------------------------------------
 
 class ChatRequest(BaseModel):
     question: str
+    conversation_id: Optional[int] = None
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _get_engine(request: Request):
+    return getattr(request.app.state, "rag_engine", None)
+
+
+def _deterministic_fallback(results: List[Dict[str, Any]]) -> str:
+    if not results:
+        return _NO_INFO
+    lines: List[str] = []
+    for r in results[:5]:
+        meta = r.get("metadata", {})
+        doc = r.get("document", "")
+        if meta.get("transaction_id"):
+            lines.append(
+                f"Transaction {meta['transaction_id']}: "
+                f"Supplier {meta.get('supplier_id', 'N/A')} — "
+                f"Risk Score {meta.get('risk_score', 'N/A')}, "
+                f"Risk Level {meta.get('risk_level', 'N/A')}, "
+                f"Amount {meta.get('amount', 'N/A')}"
+            )
+        elif meta.get("supplier_id"):
+            lines.append(
+                f"Supplier {meta['supplier_id']} "
+                f"({meta.get('supplier_name', '')}) — "
+                f"Risk Score {meta.get('risk_score', 'N/A')}, "
+                f"Risk Level {meta.get('risk_level', 'N/A')}, "
+                f"Cluster {meta.get('cluster_label', 'N/A')}"
+            )
+        elif doc:
+            lines.append(doc[:300])
+    return "\n".join(lines) if lines else _NO_INFO
+
+
+def _serialize_conv(conv, include_messages: bool = False) -> Dict:
+    data: Dict[str, Any] = {
+        "id":            conv.id,
+        "title":         conv.title,
+        "created_at":    conv.created_at.isoformat() if conv.created_at else None,
+        "updated_at":    conv.updated_at.isoformat() if conv.updated_at else None,
+        "message_count": len(conv.messages),
+    }
+    if include_messages:
+        data["messages"] = [
+            {
+                "id":         m.id,
+                "role":       m.role,
+                "content":    m.content,
+                "sources":    json.loads(m.sources or "[]"),
+                "confidence": m.confidence or 0.0,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+            }
+            for m in conv.messages
+        ]
+    return data
+
+
+# ---------------------------------------------------------------------------
+# Status / query / reindex
+# ---------------------------------------------------------------------------
+
+@router.get("/chatbot/status")
+def chatbot_status(request: Request):
+    engine = _get_engine(request)
+    if engine is None:
+        return {"ready": False, "building": False, "documents": 0, "sources": []}
+    return engine.status()
 
 
 @router.post("/chatbot/query")
 def query_chat(payload: ChatRequest, request: Request):
+    current_user = _user_from_request(request)
     q = (payload.question or "").strip()
     if not q:
-        return {"answer": "Please enter a question.", "results": []}
-
-    dl         = request.app.state.data_loader
-    enterprise = EnterpriseApiService(dl)
-
-    # ensure rag_service exists on app state
-    if not getattr(request.app.state, "rag_service", None):
-        request.app.state.rag_service = RAGService(dl)
-    rag: RAGService = request.app.state.rag_service
-
-    try:
-        # ── 1. RAG retrieval ──────────────────────────────────────────────────
-        results: List[Dict] = []
-        try:
-            results = rag.query(q, top_k=5)
-        except Exception:
-            logger.exception("RAG query error")
-
-        # ── 2. Deterministic fallback if RAG returned nothing ─────────────────
-        if not results:
-            logger.info("RAG returned 0 results — using enterprise fallback")
-            results = _enterprise_fallback(q, dl, enterprise)
-
-        # ── 3. Build prompt & call Ollama ─────────────────────────────────────
-        answer = _ollama(_build_prompt(q, results))
-
-        # ── 4. Deterministic answer if Ollama unavailable ─────────────────────
-        if not answer:
-            answer = _deterministic_answer(q, results)
-
-        return {"answer": answer, "results": results}
-
-    except Exception as exc:
-        logger.exception("Unhandled chatbot error: %s", exc)
         return {
-            "answer": "An internal error occurred. Please try again.",
-            "results": [],
+            "answer": "Please enter a question.",
+            "sources": [], "confidence": 0.0, "conversation_id": None,
         }
 
+    engine = _get_engine(request)
+    if engine is None:
+        return {
+            "answer": (
+                "The AI assistant has not been initialised yet. "
+                "Please restart the server or call /api/chatbot/reindex."
+            ),
+            "sources": [], "confidence": 0.0, "conversation_id": None,
+        }
 
-@router.post("/chatbot/rebuild")
-def rebuild_rag(request: Request):
-    rag = getattr(request.app.state, "rag_service", None)
-    if rag is None:
-        dl  = request.app.state.data_loader
-        rag = RAGService(dl)
-        request.app.state.rag_service = rag
+    if not engine.is_ready():
+        msg = (
+            "The assistant is currently indexing the datasets. "
+            "This typically takes 2–5 minutes. Please try again shortly."
+            if engine._building else
+            "The assistant index is not ready. "
+            "Please call POST /api/chatbot/reindex to build the index."
+        )
+        return {"answer": msg, "sources": [], "confidence": 0.0, "conversation_id": None}
+
+    retrieval  = engine.query(q, top_k=10)
+    context    = retrieval.get("context", "")
+    sources    = retrieval.get("sources", [])
+    confidence = retrieval.get("confidence", 0.0)
+
+    if not context.strip():
+        answer     = _NO_INFO
+        sources    = []
+        confidence = 0.0
+    else:
+        answer = generate_answer(context, q)
+        if not answer:
+            logger.warning("LLM unavailable — using deterministic fallback")
+            answer = _deterministic_fallback(retrieval.get("results", []))
+
+    # Persist to history when authenticated
+    conv_id: Optional[int] = None
+    if current_user is not None:
+        logger.info("Saving conversation for user %s (id=%d)", current_user.username, current_user.id)
+        db = SessionLocal()
+        try:
+            conv_id = payload.conversation_id
+            if conv_id is not None:
+                conv = crud.get_conversation(db, conv_id, current_user.id)
+                if not conv:
+                    logger.warning("conversation_id=%d not found for user %d — creating new", conv_id, current_user.id)
+                    conv_id = None
+            if conv_id is None:
+                title = q[:80] + ("…" if len(q) > 80 else "")
+                conv = crud.create_conversation(db, current_user.id, title)
+                conv_id = conv.id
+                logger.info("Created conversation %d: %r", conv_id, title)
+            crud.add_message(db, conv_id, "user", q)
+            crud.add_message(
+                db, conv_id, "assistant", answer,
+                sources=sources, confidence=float(confidence),
+            )
+            conv = crud.get_conversation(db, conv_id, current_user.id)
+            if conv:
+                crud.touch_conversation(db, conv)
+            logger.info("Conversation %d saved (%d messages)", conv_id, len(conv.messages) if conv else -1)
+        except Exception:
+            logger.exception("Failed to save conversation history")
+            conv_id = None
+        finally:
+            db.close()
+    else:
+        logger.warning("query_chat: no authenticated user — conversation not saved")
+
+    return {
+        "answer":          answer,
+        "sources":         sources,
+        "confidence":      confidence,
+        "conversation_id": conv_id,
+    }
+
+
+@router.post("/chatbot/reindex")
+def reindex(request: Request):
+    engine = _get_engine(request)
+    if engine is None:
+        return {"status": "error", "message": "RAG engine not available on app state"}
+    if engine._building:
+        return {"status": "already_running", "message": "Index rebuild is already in progress"}
+
+    def _rebuild():
+        try:
+            engine.build_index(force=True)
+            logger.info("Reindex complete — %d documents", engine._doc_count)
+        except Exception:
+            logger.exception("Reindex failed")
+
+    threading.Thread(target=_rebuild, daemon=True, name="rag-reindex").start()
+    return {"status": "rebuilding", "message": "Index rebuild started in background"}
+
+
+# ---------------------------------------------------------------------------
+# Conversation history
+# ---------------------------------------------------------------------------
+
+@router.get("/chatbot/conversations")
+def list_conversations(current_user: User = Depends(_required_user)):
+    db = SessionLocal()
     try:
-        rag.build_collection(limit_suppliers=500, limit_transactions=1000)
-        return {"status": "ok", "doc_count": rag._doc_count, "ready": rag.is_ready()}
-    except Exception as exc:
-        logger.exception("Rebuild failed: %s", exc)
-        return {"status": "error", "message": str(exc)}
+        convs = crud.get_conversations(db, current_user.id)
+        return [_serialize_conv(c) for c in convs]
+    finally:
+        db.close()
+
+
+@router.get("/chatbot/conversations/{conv_id}")
+def get_conversation_detail(conv_id: int, current_user: User = Depends(_required_user)):
+    db = SessionLocal()
+    try:
+        conv = crud.get_conversation(db, conv_id, current_user.id)
+        if not conv:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        return _serialize_conv(conv, include_messages=True)
+    finally:
+        db.close()
+
+
+@router.delete("/chatbot/conversations")
+def delete_all_conversations(current_user: User = Depends(_required_user)):
+    db = SessionLocal()
+    try:
+        count = crud.delete_all_conversations(db, current_user.id)
+        return {"deleted": count}
+    finally:
+        db.close()
+
+
+@router.delete("/chatbot/conversations/{conv_id}")
+def delete_conversation(conv_id: int, current_user: User = Depends(_required_user)):
+    db = SessionLocal()
+    try:
+        ok = crud.delete_conversation(db, conv_id, current_user.id)
+        if not ok:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        return {"deleted": conv_id}
+    finally:
+        db.close()

@@ -10,6 +10,7 @@ import { TransactionsPage } from './pages/TransactionsPage';
 import { TransactionDetailPage } from './pages/TransactionDetailPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { ChatbotPage } from './pages/ChatbotPage';
+import { PowerBIPage } from './pages/PowerBIPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 
 export default function App() {
@@ -33,6 +34,7 @@ export default function App() {
         <Route path="transaction/:transactionId" element={<TransactionDetailPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="chatbot" element={<ChatbotPage />} />
+        <Route path="powerbi" element={<PowerBIPage />} />
       </Route>
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

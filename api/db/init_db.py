@@ -2,6 +2,8 @@ import os
 
 from .session import engine, Base
 from ..auth.password import hash_password
+# Ensure all models are registered with Base before create_all
+from . import models  # noqa: F401
 
 
 def init_db(seed_admin_password: str = None, seed_user_password: str = None):

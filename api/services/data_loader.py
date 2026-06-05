@@ -11,6 +11,7 @@ Loaded datasets:
 """
 
 import logging
+import os
 import pandas as pd
 from pathlib import Path
 from typing import Optional, Dict, List, Any
@@ -33,11 +34,13 @@ class DataLoaderService:
         self.transactions_df: Optional[pd.DataFrame] = None
         self.suppliers_df: Optional[pd.DataFrame] = None
         self.monitoring_df: Optional[pd.DataFrame] = None
+        self.contracts_df: Optional[pd.DataFrame] = None
         self.loaded_at: Optional[datetime] = None
         self.load_status = {
             "transactions": False,
             "suppliers": False,
             "monitoring": False,
+            "contracts": False,
         }
         # Simple in-memory caches for single-record lookups
         self._txn_cache: Dict[int, Dict[str, Any]] = {}
@@ -61,6 +64,8 @@ class DataLoaderService:
             
             # Load monitoring metrics
             self.load_monitoring()
+            # Load contracts if available
+            self.load_contracts()
             
             self.loaded_at = datetime.utcnow()
             
@@ -68,6 +73,10 @@ class DataLoaderService:
             logger.info(f"✓ Transactions loaded: {len(self.transactions_df):,} rows")
             logger.info(f"✓ Suppliers loaded: {len(self.suppliers_df):,} rows")
             logger.info(f"✓ Monitoring metrics loaded: {len(self.monitoring_df):,} rows")
+            if self.contracts_df is not None:
+                logger.info(f"✓ Contracts loaded: {len(self.contracts_df):,} rows")
+            else:
+                logger.info("✓ Contracts dataset not found or failed to load")
             logger.info("All datasets loaded successfully!")
             
             return all(self.load_status.values())
@@ -119,6 +128,22 @@ class DataLoaderService:
         except Exception as e:
             logger.error(f"Failed to load monitoring: {str(e)}")
             self.load_status["monitoring"] = False
+            raise
+
+    def load_contracts(self) -> None:
+        """Load Contracts.csv for contract-level RAG retrieval."""
+        try:
+            file_path = Path(os.getenv("CONTRACTS_CSV_PATH", "Contracts.csv"))
+            if not file_path.exists():
+                raise FileNotFoundError(f"Contracts CSV not found at {file_path}")
+            logger.debug(f"Loading contracts from {file_path}")
+            self.contracts_df = pd.read_csv(file_path)
+            self.load_status["contracts"] = True
+            logger.info(f"Contracts loaded: {len(self.contracts_df)} rows, {len(self.contracts_df.columns)} columns")
+        except Exception as e:
+            logger.error(f"Failed to load contracts: {str(e)}")
+            self.contracts_df = None
+            self.load_status["contracts"] = False
             raise
 
     # ========================================================================
