@@ -400,48 +400,60 @@ Note: below each entry contains: (1) file name, (2) short purpose, (3) role in M
 
 ## AI Risk Assistant – RAG Chatbot Module
 
-This section documents the newly integrated AI Risk Assistant, a lightweight Retrieval-Augmented Generation (RAG) chatbot embedded into the existing dashboard.
+This section documents the AI Risk Assistant, a Retrieval-Augmented Generation (RAG) "P2P Intelligence Copilot" embedded into the dashboard, backed by a persistent vector index and a cloud LLM.
 
 Architecture overview
-- Frontend Chat UI (React) → FastAPI endpoint POST `/api/chatbot/query` → `RAGService` (ChromaDB + sentence-transformers) for retrieval → Local Ollama LLM (`llama3.2:1b`) for answer generation → Result returned to frontend.
+- Frontend Chat UI (React, `ChatbotPage.tsx`) → FastAPI router `api/routers/chatbot.py` (`/api/chatbot/status`, `/query`, `/reindex`, `/conversations…`) → `RAGEngine` (`api/services/rag_engine.py`, persistent ChromaDB + sentence-transformers) for retrieval → Groq cloud LLM (`groq_service.py`, `llama-3.3-70b-versatile`) for answer generation → conversation history persisted in SQLite (`auth.db`) → answer, sources and confidence returned to the frontend.
 
 Data flow
-- `RAGService` builds a compact document index from the project's existing `suppliers_df` and `transactions_df` (no new datasets). Documents include supplier id, supplier_name (if present), risk_score and risk_level; transaction id, amount, risk_score and risk_level; anomaly classification when available.
-- Embeddings are generated with `sentence-transformers` (default `all-MiniLM-L6-v2`) and stored in an in-memory ChromaDB collection (`p2p_rag`).
+- `RAGEngine.discover_files()` automatically indexes multiple sources rather than just `suppliers_df`/`transactions_df`: every supported file (`.csv`, `.xlsx`, `.xls`, `.parquet`, `.json`) under `src/data/products/`, the root-level `Contracts.csv`, and any other subfolder of `src/data/` (skip-listing the raw JSONL exports and archives).
+- A column-alias map (`_ALIASES`) normalizes SAP-style field-name variants (e.g. `supplier_|_lifnr`) onto canonical logical fields (`supplier_id`, `risk_score`, `risk_level`, `amount`, `cluster_label`, `has_anomaly`, `po_number`, `material`, …), so heterogeneous datasets become uniform documents.
+- Tiered row limits bound the index size (`_LIMIT_TRANSACTIONS=40000`, `_LIMIT_CONTRACTS=30000`, `_LIMIT_DEFAULT=5000`, all env-configurable). Each row is converted into a compact pipe-delimited text string plus metadata and a stable document id (`txn-{id}`, `sup-{id}-{slug}`, `contract-{supplier_id}-{row_idx}`).
 
 Retrieval process
-- User question → semantic embedding → ChromaDB top-K retrieval (K=5) → compact context built from returned metadatas (one-line summaries) → prompt assembled for Ollama.
+- Hybrid retrieval: `RAGEngine.query()` scans the question for numeric tokens and keywords ("supplier", "transaction", "txn"). When an id is detected, it performs an **exact lookup** directly against the cached supplier/transaction DataFrames (`match_type="exact_id"`, `score=1.0`), bypassing the vector index, then supplements the result with **semantic search** (`top_k=10` by default) against ChromaDB, deduplicating by document text. The combined context, source list and an overall confidence score are returned to the router.
 
 ChromaDB usage
-- Lightweight, in-memory Chroma client used to avoid new infrastructure. The collection is constructed at startup (or on first request) and cached on the FastAPI app state to minimize rebuilds.
+- The engine maintains a **persistent** ChromaDB store on disk (`chroma_dir="./chroma_db"`, configurable via `CHROMA_PERSIST_DIR`), falling back to an in-memory client only if the persistent client cannot be initialized. All documents live in a single collection named `p2p_copilot_v2` (`hnsw:space="cosine"`).
+- A state file (`chroma_db/rag_state.json`) caches the document count and source list from the last successful build. On startup, `build_index(force=False)` first calls `_load_existing_index()` to reuse the persisted collection without re-embedding; a full rebuild only happens when no valid cache exists or `/chatbot/reindex` is invoked with `force=True`.
 
 Embedding generation
-- Uses `sentence-transformers` to compute embeddings for documents and queries. Batch encoding is used to reduce memory spikes. Default encoder: `all-MiniLM-L6-v2` (configurable via `RAG_EMBED_MODEL`).
+- Uses `sentence-transformers` to compute embeddings for documents and queries. Default encoder: `all-MiniLM-L6-v2` (configurable via `RAG_EMBED_MODEL`). Documents are embedded and upserted into ChromaDB in batches (`RAG_BATCH_SIZE`, default 512) to control memory usage during a full rebuild.
 
-Ollama integration
-- Local Ollama endpoint: `http://127.0.0.1:11434/api/generate` (configurable via `OLLAMA_URL`).
-- Model used: `llama3.2:1b` (configurable via `OLLAMA_MODEL`).
-- Generation params: `temperature=0.2`, `max_tokens=512`.
-- Prompt template instructs the model to answer in professional business English, explain risks, mention KPIs, highlight anomalies and give concise recommendations.
+Groq LLM integration
+- Answer generation is delegated to the **Groq cloud API** (`groq_service.generate_answer`), not a local model: `POST https://api.groq.com/openai/v1/chat/completions`, authenticated via `GROQ_API_KEY`, model from `GROQ_MODEL` (default `llama-3.3-70b-versatile`), with `temperature=0.0`, `max_tokens=900` and a 30 s timeout.
+- A dedicated system prompt (`_SYSTEM_PROMPT`) instructs the model to answer strictly from the supplied context, never invent values, always cite record ids, format numbers to two decimals, use the LOW/MEDIUM/HIGH/CRITICAL vocabulary, and return a fixed fallback sentence whenever the context does not contain the answer.
+- Any failure (missing key, HTTP error, timeout, empty response) makes `generate_answer()` return an empty string, which the router treats as "LLM unavailable" and routes to the deterministic fallback.
 
 Fallback behavior
-- If Ollama is unavailable or the call fails, the API returns a deterministic summary constructed from the retrieved records (top suppliers / transactions with scores). The endpoint never crashes and always returns `{ answer, results }`.
+- When Groq is unavailable or returns an empty answer, `_deterministic_fallback()` in the router builds a plain-text summary directly from the top retrieved records (suppliers/transactions with their ids, scores and levels), or returns the fixed sentence *"I do not have enough information in the available datasets to answer that question."* when nothing relevant was retrieved. `POST /chatbot/query` never crashes — it always returns `{ answer, sources, confidence, conversation_id }`.
+
+Conversation history (SQLite persistence)
+- Each exchange is persisted to the existing `auth.db` SQLite database via the `Conversation` and `ConversationMessage` SQLAlchemy models (`api/db/models.py`). A `Conversation` belongs to a `User` and owns an ordered list of messages; each `ConversationMessage` stores its role (`user`/`assistant`), content, JSON-encoded `sources`, a `confidence` score and a timestamp, with cascading delete.
+- For authenticated users, `POST /chatbot/query` creates a new conversation (or appends to the supplied `conversation_id`), stores both the question and the answer, and returns the `conversation_id`. Dedicated CRUD endpoints expose this history: `GET /chatbot/conversations` (list), `GET /chatbot/conversations/{id}` (full detail with messages), `DELETE /chatbot/conversations` (delete all) and `DELETE /chatbot/conversations/{id}` (delete one). Anonymous users can still query the assistant; their exchanges simply aren't saved.
+
+Startup & indexing
+- `create_app()` instantiates a single `RAGEngine` (`api/main.py`), pre-loads `_suppliers_df`/`_transactions_df` from the `DataLoaderService` so exact-id lookups work immediately, and stores it on `app.state.rag_engine`.
+- On the FastAPI `startup` event, a daemon background thread (`_rag_build_thread`) calls `engine.build_index(force=False)` so the (potentially slow) embedding/indexing work never blocks API start-up; `GET /chatbot/status` exposes `{ ready, building, documents, sources }` while this runs, and `POST /chatbot/reindex` can trigger a forced rebuild in the same kind of background thread.
 
 Frontend integration
-- New page: `frontend/src/pages/ChatbotPage.tsx` (route `/chatbot`) integrates into the sidebar as `AI Risk Assistant` and reuses existing `SectionCard` and theme styles.
-- UI features: modern chat interface, user/assistant messages, auto-scroll, loading indicator, and error handling. Mobile-friendly layout using existing CSS.
+- Page: `frontend/src/pages/ChatbotPage.tsx` (route `/chatbot`, sidebar entry "AI Risk Assistant" / header "P2P Intelligence Copilot"), reusing existing `section-card` and theme styles.
+- **Status polling**: `useQuery(['chatbot-status'], fetchChatbotStatus)` refetches every 5 s while the index is building and every 30 s once ready, driving a status pill ("Initializing…", "Indexing datasets — please wait…", or "Ready · N documents indexed") and an "INDEXED SOURCES" panel listing the discovered data files.
+- **Conversation sidebar**: a "HISTORY" panel (`fetchConversations`) lists past conversations with title and relative date, lets the user open a thread (`fetchConversationDetail`, replaying its stored messages), start a new chat, or delete one/all conversations (`deleteConversation` / `deleteAllConversations`), with optimistic cache invalidation via React Query.
+- **Confidence/source badges**: each assistant message renders a `ConfidenceBadge` ("NN% match", colour-coded green ≥ 70 %, amber ≥ 40 %, red below) plus a row of `SourceTag` chips built from the retrieval `sources`.
 
 Business value
-- Allows analysts to ask natural language questions about suppliers, transactions, anomalies and KPIs and get concise, actionable explanations referencing real dataset records and ML-derived signals.
+- Allows analysts to ask natural-language questions about suppliers, transactions, contracts and KPIs and receive grounded, source-cited answers — combining exact-id lookups for "tell me about supplier/transaction X" questions with semantic search across all discovered datasets, plus a persistent history so they can resume earlier investigations.
 
 Limitations
-- In-memory ChromaDB is not persistent across process restarts; for production, persist storage or external vector DB is recommended.
-- Embedding model (`all-MiniLM-L6-v2`) trades accuracy for speed and low memory; swap for larger models if needed.
+- Answer quality and latency depend on the external Groq API (network availability, rate limits, cost); the deterministic fallback is comprehensive but less conversational.
+- Embedding model (`all-MiniLM-L6-v2`) trades accuracy for speed and low memory; swap for a larger model via `RAG_EMBED_MODEL` if higher retrieval precision is required.
+- Tiered row limits mean very large sources (e.g. transactions beyond 40,000 rows) are sampled rather than fully indexed.
 
 Future improvements
-- Persist Chroma to disk or connect to a production vector DB for scale.
-- Add index refresh strategy to update the collection when datasets change.
-- Add prompt templates, chain-of-thought control or retrieval filtering for higher precision.
+- Add a scheduled/triggered reindex strategy so the collection picks up new or changed datasets without a manual `/chatbot/reindex` call.
+- Stream LLM responses to the frontend for a more responsive chat experience.
+- Add retrieval filters (by risk level, date range, supplier) and prompt templates tuned to specific question types for higher precision.
 
 - Where training happens
   - Training is performed by `src/scripts/execute_ml_pipeline.py` (and notebooks `06_model_training.ipynb`). This script explicitly trains supervised models and persists them in `src/models/`.

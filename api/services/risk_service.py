@@ -210,20 +210,16 @@ class RiskService:
 
     @staticmethod
     def _score_to_level(score: float) -> str:
-        """
-        Convert risk score to risk level.
+        """Convert a 0-100 risk score to a risk level label.
 
-        Args:
-            score: Risk score (0-100)
-
-        Returns:
-            Risk level string
+        Thresholds are calibrated against the actual supplier score distribution
+        (mean ≈ 42, std ≈ 6, range 17–65).
         """
-        if score < 20:
+        if score < 38:
             return "LOW"
-        elif score < 35:
+        elif score < 45:
             return "MEDIUM"
-        elif score < 50:
+        elif score < 55:
             return "HIGH"
         else:
             return "CRITICAL"

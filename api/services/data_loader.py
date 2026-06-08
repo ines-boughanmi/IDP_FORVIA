@@ -339,14 +339,14 @@ class DataLoaderService:
         return df.to_dict("records"), total_count
 
     def get_high_risk_suppliers(self, limit: int = 50) -> List[Dict[str, Any]]:
-        """Get high-risk suppliers."""
+        """Get high-risk suppliers ranked by risk_score."""
         if self.suppliers_df is None:
             return []
-        
+
         df = self.suppliers_df[
-            self.suppliers_df["cluster_label"] == "HIGH_RISK_SUPPLIERS"
+            self.suppliers_df["risk_level"].isin(["HIGH", "CRITICAL"])
         ].nlargest(limit, "risk_score")
-        
+
         return df.to_dict("records")
 
     # ========================================================================
