@@ -13,11 +13,8 @@ export function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="brand-block">
-        <div className="brand-mark">SP</div>
-        <div>
-          <p className="brand-eyebrow">SAP / Forvia</p>
-          <h1 className="brand-title">P2P Intelligence</h1>
-        </div>
+        <p className="brand-eyebrow">Forvia</p>
+        <h1 className="brand-title">IDP</h1>
       </div>
 
       <nav className="sidebar-nav">

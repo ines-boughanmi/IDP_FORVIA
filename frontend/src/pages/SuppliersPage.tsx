@@ -69,6 +69,7 @@ export function SuppliersPage() {
               <thead>
                 <tr>
                   <th>Supplier ID</th>
+                  <th>Supplier Name</th>
                   <th>Risk Score</th>
                   <th>Risk Level</th>
                   <th>Cluster</th>
@@ -81,6 +82,7 @@ export function SuppliersPage() {
                 {suppliers.map((supplier) => (
                   <tr key={String(supplier.supplier_id)} onClick={() => navigate(`/supplier/${supplier.supplier_id}`)}>
                     <td>{supplier.supplier_id}</td>
+                    <td>{supplier.supplier_name ?? '-'}</td>
                     <td>{formatNumber(asNumber(supplier.risk_score), 2)}</td>
                     <td>{supplier.risk_level}</td>
                     <td>{String(supplier.cluster_label ?? '-')}</td>
@@ -99,7 +101,10 @@ export function SuppliersPage() {
           <div className="spotlight-list">
             {(spotlightQuery.data?.data.suppliers ?? []).map((supplier) => (
               <button key={String(supplier.supplier_id)} type="button" className="spotlight-row" onClick={() => navigate(`/supplier/${supplier.supplier_id}`)}>
-                <strong>{supplier.supplier_id}</strong>
+                <span className="spotlight-row-info">
+                  <strong>{supplier.supplier_name ?? `Supplier ${supplier.supplier_id}`}</strong>
+                  <small>ID: {supplier.supplier_id}</small>
+                </span>
                 <span>{formatNumber(asNumber(supplier.risk_score), 2)}</span>
               </button>
             ))}

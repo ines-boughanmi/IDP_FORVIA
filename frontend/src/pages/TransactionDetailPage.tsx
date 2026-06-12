@@ -38,6 +38,7 @@ export function TransactionDetailPage() {
         <StatCard label="Risk Score" value={formatNumber(asNumber(overview.transaction_profile.risk_score), 2)} tone={String(overview.transaction_profile.risk_level) === 'CRITICAL' ? 'red' : 'blue'} />
         <StatCard label="Risk Level" value={String(overview.transaction_profile.risk_level ?? 'N/A')} tone={String(overview.transaction_profile.risk_level) === 'CRITICAL' ? 'red' : 'amber'} />
         <StatCard label="Supplier ID" value={String(overview.transaction_profile.supplier_id ?? 'N/A')} />
+        <StatCard label="Supplier Name" value={String(overview.transaction_profile.supplier_name ?? 'N/A')} />
         <StatCard label="Alert Count" value={overview.alerts.length} />
       </section>
 

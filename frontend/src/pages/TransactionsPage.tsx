@@ -73,6 +73,7 @@ export function TransactionsPage() {
               <tr>
                 <th>Transaction ID</th>
                 <th>Supplier ID</th>
+                <th>Supplier Name</th>
                 <th>Risk Score</th>
                 <th>Risk Level</th>
                 <th>Days in System</th>
@@ -85,6 +86,7 @@ export function TransactionsPage() {
                 <tr key={String(transaction.transaction_id)} onClick={() => navigate(`/transaction/${transaction.transaction_id}`)}>
                   <td>{transaction.transaction_id}</td>
                   <td>{transaction.supplier_id}</td>
+                  <td>{transaction.supplier_name ?? '-'}</td>
                   <td>{formatNumber(asNumber(transaction.risk_score), 2)}</td>
                   <td>{transaction.risk_level}</td>
                   <td>{formatNumber(asNumber(transaction.days_in_system))}</td>

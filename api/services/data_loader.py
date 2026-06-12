@@ -45,6 +45,7 @@ class DataLoaderService:
         # Simple in-memory caches for single-record lookups
         self._txn_cache: Dict[int, Dict[str, Any]] = {}
         self._sup_cache: Dict[int, Dict[str, Any]] = {}
+        self._supplier_names: Dict[int, str] = {}
 
     def load_all(self) -> bool:
         """
@@ -66,6 +67,8 @@ class DataLoaderService:
             self.load_monitoring()
             # Load contracts if available
             self.load_contracts()
+            # Build supplier_id -> supplier_name lookup
+            self.load_supplier_names()
             
             self.loaded_at = datetime.utcnow()
             
@@ -129,6 +132,22 @@ class DataLoaderService:
             logger.error(f"Failed to load monitoring: {str(e)}")
             self.load_status["monitoring"] = False
             raise
+
+    def load_supplier_names(self) -> None:
+        """Build a supplier_id -> supplier_name lookup from the raw documents dataset."""
+        try:
+            file_path = Path("src/data/raw/Documents1.csv")
+            if not file_path.exists():
+                logger.warning("Supplier name lookup not built — %s not found", file_path)
+                return
+            df = pd.read_csv(file_path, usecols=["supplier_id", "supplier_name"], low_memory=False)
+            names = df.dropna().drop_duplicates("supplier_id")
+            self._supplier_names = {
+                int(row.supplier_id): str(row.supplier_name) for row in names.itertuples()
+            }
+            logger.info(f"Supplier name lookup built: {len(self._supplier_names)} suppliers")
+        except Exception as e:
+            logger.error(f"Failed to build supplier name lookup: {str(e)}")
 
     def load_contracts(self) -> None:
         """Load Contracts.csv for contract-level RAG retrieval."""
@@ -479,6 +498,10 @@ class DataLoaderService:
             return df.to_dict("records")
         except ValueError:
             return []
+
+    def get_supplier_name(self, supplier_id: int) -> Optional[str]:
+        """Look up a supplier's display name from the contracts dataset."""
+        return self._supplier_names.get(int(supplier_id))
 
     def is_healthy(self) -> bool:
         """Check if all datasets are loaded."""

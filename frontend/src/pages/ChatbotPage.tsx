@@ -471,7 +471,7 @@ export function ChatbotPage() {
       <div className="page-header">
         <div>
           <p className="page-kicker">AI-Powered Analysis</p>
-          <h1>P2P Intelligence Copilot</h1>
+          <h1>IDP Copilot</h1>
           <p>
             Ask questions about suppliers, transactions, contracts, and risk
             metrics — grounded exclusively in your datasets.

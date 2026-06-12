@@ -36,6 +36,7 @@ export function DashboardPage() {
     const payload = rankingQuery.data?.data?.suppliers ?? [];
     return payload.slice(0, 10).map((item) => ({
       supplier_id: asNumber(item.supplier_id),
+      supplier_name: item.supplier_name,
       risk_score: asNumber(item.risk_score),
     }));
   }, [rankingQuery.data]);
@@ -108,7 +109,8 @@ export function DashboardPage() {
         <div className="spotlight-grid">
           <div className="spotlight-box">
             <span>Top risk supplier</span>
-            <strong>{dashboard?.top_risk_supplier?.supplier_id ?? 'N/A'}</strong>
+            <strong>{dashboard?.top_risk_supplier?.supplier_name ?? 'N/A'}</strong>
+            <p>ID: {dashboard?.top_risk_supplier?.supplier_id ?? 'N/A'}</p>
             <p>
               {titleCase(String(dashboard?.top_risk_supplier?.risk_level ?? 'unknown'))} - score {formatNumber(dashboard?.top_risk_supplier?.risk_score, 2)}
             </p>

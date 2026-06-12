@@ -65,6 +65,7 @@ export type RiskDistributionBucket = {
 
 export type SupplierSummary = {
   supplier_id: number;
+  supplier_name?: string | null;
   risk_score: number;
   risk_level: string;
   cluster_label?: string;
@@ -74,6 +75,7 @@ export type SupplierSummary = {
 export type TransactionSummary = {
   transaction_id: number;
   supplier_id: number;
+  supplier_name?: string | null;
   risk_score: number;
   risk_level: string;
   explanation?: string;
@@ -84,6 +86,8 @@ export type TransactionSummary = {
 export type AlertItem = {
   alert_id: string;
   entity_type: 'transaction' | 'supplier';
+  supplier_id?: number;
+  supplier_name?: string | null;
   risk_score: number;
   risk_level: string;
   explanation: string;
@@ -92,6 +96,7 @@ export type AlertItem = {
 
 export type SupplierOverview = {
   supplier_profile: Record<string, unknown>;
+  supplier_name?: string | null;
   risk_score: number;
   risk_level: string;
   cluster: {

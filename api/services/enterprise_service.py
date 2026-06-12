@@ -95,8 +95,10 @@ class EnterpriseApiService:
             critical_suppliers = int((supplier_df["risk_level"] == "CRITICAL").sum())
             high_risk_suppliers = int((supplier_df["risk_level"] == "HIGH").sum())
             top = supplier_df.sort_values("risk_score", ascending=False).iloc[0].to_dict()
+            top_supplier_id = _to_int(top.get("supplier_id"))
             top_risk_supplier = {
-                "supplier_id": _to_int(top.get("supplier_id")),
+                "supplier_id": top_supplier_id,
+                "supplier_name": self.data_loader.get_supplier_name(top_supplier_id) if top_supplier_id is not None else None,
                 "risk_score": _to_float(top.get("risk_score")),
                 "risk_level": top.get("risk_level"),
                 "cluster_label": top.get("cluster_label"),
@@ -172,7 +174,12 @@ class EnterpriseApiService:
         filtered = filtered.sort_values(["risk_score", "created_timestamp"], ascending=[False, False])
         offset = (page - 1) * page_size
         records = filtered.iloc[offset : offset + page_size].to_dict("records")
-        return [_record_to_json(record) for record in records], total
+        results = []
+        for record in records:
+            item = _record_to_json(record)
+            item["supplier_name"] = self.data_loader.get_supplier_name(item["supplier_id"])
+            results.append(item)
+        return results, total
 
     def search_suppliers(
         self,
@@ -211,7 +218,12 @@ class EnterpriseApiService:
         filtered = filtered.sort_values(["risk_score", "created_timestamp"], ascending=[False, False])
         offset = (page - 1) * page_size
         records = filtered.iloc[offset : offset + page_size].to_dict("records")
-        return [_record_to_json(record) for record in records], total
+        results = []
+        for record in records:
+            item = _record_to_json(record)
+            item["supplier_name"] = self.data_loader.get_supplier_name(item["supplier_id"])
+            results.append(item)
+        return results, total
 
     # ------------------------------------------------------------------
     # Alerts
@@ -224,8 +236,13 @@ class EnterpriseApiService:
         filtered["alert_id"] = "txn-" + filtered["transaction_id"].astype(str)
         filtered["entity_type"] = "transaction"
         filtered["created_at"] = pd.to_datetime(filtered["created_timestamp"], errors="coerce").dt.strftime("%Y-%m-%dT%H:%M:%S")
-        records = filtered[["alert_id", "entity_type", "risk_score", "risk_level", "explanation", "created_at"]].to_dict("records")
-        return [_record_to_json(record) for record in records]
+        records = filtered[["alert_id", "entity_type", "risk_score", "risk_level", "explanation", "created_at", "supplier_id"]].to_dict("records")
+        results = []
+        for record in records:
+            item = _record_to_json(record)
+            item["supplier_name"] = self.data_loader.get_supplier_name(item["supplier_id"])
+            results.append(item)
+        return results
 
     def alerts_suppliers(self) -> List[Dict[str, Any]]:
         df = self.data_loader.suppliers_df
@@ -235,8 +252,13 @@ class EnterpriseApiService:
         filtered["alert_id"] = "sup-" + filtered["supplier_id"].astype(str)
         filtered["entity_type"] = "supplier"
         filtered["created_at"] = pd.to_datetime(filtered["created_timestamp"], errors="coerce").dt.strftime("%Y-%m-%dT%H:%M:%S")
-        records = filtered[["alert_id", "entity_type", "risk_score", "risk_level", "explanation", "created_at"]].to_dict("records")
-        return [_record_to_json(record) for record in records]
+        records = filtered[["alert_id", "entity_type", "risk_score", "risk_level", "explanation", "created_at", "supplier_id"]].to_dict("records")
+        results = []
+        for record in records:
+            item = _record_to_json(record)
+            item["supplier_name"] = self.data_loader.get_supplier_name(item["supplier_id"])
+            results.append(item)
+        return results
 
     def alerts_all(self) -> List[Dict[str, Any]]:
         return self.alerts_transactions() + self.alerts_suppliers()
@@ -275,6 +297,7 @@ class EnterpriseApiService:
 
         return {
             "supplier_profile": _record_to_json(supplier),
+            "supplier_name": self.data_loader.get_supplier_name(_to_int(supplier.get("supplier_id"))),
             "risk_score": _to_float(supplier.get("risk_score")),
             "risk_level": supplier.get("risk_level"),
             "cluster": {
@@ -341,10 +364,18 @@ class EnterpriseApiService:
             "is_delayed": _to_int(txn.get("is_delayed")),
         }
 
+        supplier_name = self.data_loader.get_supplier_name(int(txn.get("supplier_id")))
+        transaction_profile = _record_to_json(txn)
+        transaction_profile["supplier_name"] = supplier_name
+
+        supplier_information = _record_to_json(supplier) if supplier else None
+        if supplier_information is not None:
+            supplier_information["supplier_name"] = supplier_name
+
         return {
-            "transaction_profile": _record_to_json(txn),
+            "transaction_profile": transaction_profile,
             "risk_components": risk_components,
-            "supplier_information": _record_to_json(supplier) if supplier else None,
+            "supplier_information": supplier_information,
             "explanation": txn.get("explanation"),
             "alerts": related_alerts,
         }
@@ -364,7 +395,12 @@ class EnterpriseApiService:
             .head(limit)
             .to_dict("records")
         )
-        return [_record_to_json(record) for record in records]
+        results = []
+        for record in records:
+            item = _record_to_json(record)
+            item["supplier_name"] = self.data_loader.get_supplier_name(item["supplier_id"])
+            results.append(item)
+        return results
 
     def cluster_distribution(self) -> Dict[str, Any]:
         df = self.data_loader.suppliers_df

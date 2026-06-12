@@ -78,19 +78,7 @@ select {
 
 .brand-block {
   display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.brand-mark {
-  width: 52px;
-  height: 52px;
-  border-radius: 16px;
-  display: grid;
-  place-items: center;
-  background: linear-gradient(145deg, var(--blue-strong), #1a5edb);
-  box-shadow: var(--shadow);
-  font-weight: 800;
+  flex-direction: column;
 }
 
 .brand-eyebrow,
@@ -105,8 +93,7 @@ select {
 
 .brand-title,
 .topbar-title,
-.page-header h1,
-.login-copy h1 {
+.page-header h1 {
   margin: 6px 0 0;
   line-height: 1.05;
 }
@@ -181,7 +168,6 @@ select {
 
 .user-role,
 .stat-hint,
-.login-hint,
 .section-header p,
 .page-header p,
 .spotlight-box p,
@@ -554,6 +540,19 @@ select {
   background: rgba(127, 179, 255, 0.06);
 }
 
+.spotlight-row-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+}
+
+.spotlight-row-info small {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
 .login-screen {
   min-height: 100vh;
   display: grid;
@@ -562,27 +561,16 @@ select {
 }
 
 .login-panel {
-  width: min(1120px, 100%);
-  display: grid;
-  grid-template-columns: 1.3fr 0.9fr;
-  overflow: hidden;
+  width: min(420px, 100%);
+  padding: 40px;
 }
 
-.login-copy,
-.login-form {
-  padding: 34px;
-}
-
-.login-copy {
-  background: linear-gradient(140deg, rgba(47, 120, 255, 0.15), rgba(17, 29, 50, 0.98));
-}
-
-.login-features {
-  margin: 26px 0 0;
-  padding-left: 18px;
-  color: var(--muted);
-  display: grid;
-  gap: 10px;
+.login-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 32px;
 }
 
 .login-form {
@@ -638,8 +626,7 @@ select {
   .dashboard-grid,
   .two-column-grid,
   .spotlight-grid,
-  .alert-inline-list,
-  .login-panel {
+  .alert-inline-list {
     grid-template-columns: 1fr;
   }
 

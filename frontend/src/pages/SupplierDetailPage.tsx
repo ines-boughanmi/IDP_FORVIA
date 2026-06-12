@@ -34,6 +34,8 @@ export function SupplierDetailPage() {
       </div>
 
       <section className="stat-grid">
+        <StatCard label="Supplier ID" value={String(supplierId)} />
+        <StatCard label="Supplier Name" value={overview.supplier_name ?? 'N/A'} />
         <StatCard label="Risk Score" value={formatNumber(overview.risk_score, 2)} tone={overview.risk_level === 'CRITICAL' ? 'red' : 'blue'} />
         <StatCard label="Risk Level" value={titleCase(overview.risk_level)} tone={overview.risk_level === 'CRITICAL' ? 'red' : 'amber'} />
         <StatCard label="Cluster" value={overview.cluster.cluster_label} />

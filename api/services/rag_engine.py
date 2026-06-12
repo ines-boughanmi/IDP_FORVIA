@@ -129,6 +129,7 @@ class RAGEngine:
 
         self._suppliers_df:    Optional[pd.DataFrame] = None
         self._transactions_df: Optional[pd.DataFrame] = None
+        self._supplier_name_map: Dict[int, str] = {}
 
     # -------------------------------------------------------------------------
     # Internal initialisation
@@ -234,6 +235,37 @@ class RAGEngine:
         return found
 
     # -------------------------------------------------------------------------
+    # Supplier ID -> name lookup (built once, used to enrich rows that only
+    # carry a supplier_id so semantic search can match on supplier names)
+    # -------------------------------------------------------------------------
+
+    def _build_supplier_name_map(self) -> None:
+        name_map: Dict[int, str] = {}
+        for path, _source in self.discover_files():
+            if path.suffix != ".csv":
+                continue
+            try:
+                header = pd.read_csv(path, nrows=0)
+            except Exception:
+                continue
+            id_col   = _find_col(header, "supplier_id")
+            name_col = _find_col(header, "supplier_name")
+            if not id_col or not name_col:
+                continue
+            try:
+                df = pd.read_csv(path, usecols=[id_col, name_col], low_memory=False)
+            except Exception:
+                continue
+            for _, row in df.iterrows():
+                sid  = _safe_int(row[id_col])
+                name = _meta_str(row[name_col])
+                if sid is not None and name and sid not in name_map:
+                    name_map[sid] = name
+
+        self._supplier_name_map = name_map
+        logger.info("RAG: built supplier name map with %d entries", len(name_map))
+
+    # -------------------------------------------------------------------------
     # Data loading
     # -------------------------------------------------------------------------
 
@@ -291,6 +323,8 @@ class RAGEngine:
         risk_level     = _meta_str(g("risk_level"))
         amount         = _safe_float(g("amount"))
         supplier_name  = _meta_str(g("supplier_name"))
+        if not supplier_name and supplier_id is not None:
+            supplier_name = self._supplier_name_map.get(supplier_id)
         cluster_label  = _meta_str(g("cluster_label"))
         has_anomaly    = g("has_anomaly")
         is_delayed     = g("is_delayed")
@@ -485,6 +519,7 @@ class RAGEngine:
         self._building = True
         try:
             self._init_model()
+            self._build_supplier_name_map()
             self._open_collection(reset=True)
             if self._collection is None:
                 logger.error("RAG: no collection available — aborting build")
@@ -557,6 +592,8 @@ class RAGEngine:
             ]
             record = row.to_dict()
             _, meta, _ = self._row_to_doc_fast(record, "products/supplier_risk_table", 0, col_map)
+            if meta.get("supplier_name") and not _find_col(df, "supplier_name"):
+                text_parts.insert(0, f"Supplier Name: {meta['supplier_name']}")
             results.append({
                 "document":   " | ".join(text_parts),
                 "metadata":   meta,
@@ -583,6 +620,8 @@ class RAGEngine:
             ]
             record = row.to_dict()
             _, meta, _ = self._row_to_doc_fast(record, "products/transactions_risk_table", 0, col_map)
+            if meta.get("supplier_name") and not _find_col(df, "supplier_name"):
+                text_parts.insert(0, f"Supplier Name: {meta['supplier_name']}")
             results.append({
                 "document":   " | ".join(text_parts),
                 "metadata":   meta,

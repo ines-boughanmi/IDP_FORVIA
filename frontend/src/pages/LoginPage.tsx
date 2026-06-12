@@ -42,17 +42,9 @@ export function LoginPage() {
   return (
     <div className="login-screen">
       <div className="login-panel">
-        <div className="login-copy">
-          <span className="status-pill success">Phase 4B</span>
-          <h1>Enterprise P2P Intelligence Center</h1>
-          <p>
-            Monitor executive KPIs, investigate suppliers and transactions, and prepare the platform for future chatbot-guided analysis.
-          </p>
-          <ul className="login-features">
-            <li>JWT authentication and route protection</li>
-            <li>Executive dashboard with analytics</li>
-            <li>Supplier and transaction investigation views</li>
-          </ul>
+        <div className="login-brand">
+          <p className="brand-eyebrow">Forvia</p>
+          <h1 className="brand-title">IDP</h1>
         </div>
 
         <form className="login-form" onSubmit={handleSubmit}>
@@ -69,7 +61,6 @@ export function LoginPage() {
           <button className="btn btn-primary" type="submit" disabled={loading}>
             {loading ? 'Signing in...' : 'Login'}
           </button>
-          <p className="login-hint">Default admin credentials are available in the backend seed data.</p>
         </form>
       </div>
     </div>

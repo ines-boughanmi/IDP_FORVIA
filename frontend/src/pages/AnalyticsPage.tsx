@@ -51,7 +51,7 @@ export function AnalyticsPage() {
           <RiskDistributionChart data={riskBuckets} />
         </SectionCard>
         <SectionCard title="Supplier ranking">
-          <SupplierRankingChart data={topSuppliers.slice(0, 10).map((item) => ({ supplier_id: asNumber(item.supplier_id), risk_score: asNumber(item.risk_score) }))} />
+          <SupplierRankingChart data={topSuppliers.slice(0, 10).map((item) => ({ supplier_id: asNumber(item.supplier_id), supplier_name: item.supplier_name, risk_score: asNumber(item.risk_score) }))} />
         </SectionCard>
         <SectionCard title="Cluster distribution">
           <ClusterDistributionChart data={clusterRows as Array<{ cluster_label: string; suppliers: number }>} />

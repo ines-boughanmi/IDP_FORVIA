@@ -92,6 +92,8 @@ export function AlertsPage() {
               <tr>
                 <th>Alert ID</th>
                 <th>Entity</th>
+                <th>Supplier ID</th>
+                <th>Supplier Name</th>
                 <th>Risk Score</th>
                 <th>Risk Level</th>
                 <th>Explanation</th>
@@ -103,6 +105,8 @@ export function AlertsPage() {
                 <tr key={alert.alert_id}>
                   <td>{alert.alert_id}</td>
                   <td>{alert.entity_type}</td>
+                  <td>{alert.supplier_id ?? '-'}</td>
+                  <td>{alert.supplier_id != null ? (alert.supplier_name ?? '-') : '-'}</td>
                   <td>{formatNumber(asNumber(alert.risk_score), 2)}</td>
                   <td>
                     <Chip tone={alert.risk_level === 'CRITICAL' ? 'red' : 'amber'}>{alert.risk_level}</Chip>

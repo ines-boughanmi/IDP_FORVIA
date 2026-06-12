@@ -35,6 +35,11 @@ export function formatDateTime(value: unknown): string {
   });
 }
 
+export function formatSupplier(supplierId: unknown, supplierName?: string | null): string {
+  if (supplierName) return `${supplierName} (#${supplierId})`;
+  return String(supplierId ?? 'N/A');
+}
+
 export function titleCase(value: string): string {
   return value
     .toLowerCase()
