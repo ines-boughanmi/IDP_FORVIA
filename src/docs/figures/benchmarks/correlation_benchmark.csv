@@ -1,0 +1,6 @@
+Relation,Correlation,Interpretation
+GR Amount vs IR Amount,0.163,"Negligeable, positive (conforme a l'attendu: forte correlation positive attendue)"
+Aging Days vs Risk Score,0.322,"Faible, positive (conforme a l'attendu: correlation positive attendue (le risque augmente avec l'anciennete))"
+Total Quantity vs Amount Per Qty,-0.002,Quasi nulle (r=-0.002) - relation correlation negative attendue (effet de volume) non confirmee sur ce perimetre
+Delivery Gap vs Invoice Gap,0.118,"Negligeable, positive (conforme a l'attendu: lien attendu entre les deux mesures d'ecart GR/IR)"
+Invoice Gap vs Risk Score,-0.384,"Faible, negative (sens inverse de l'attendu: un ecart GR/IR plus grand devrait augmenter le risque)"
