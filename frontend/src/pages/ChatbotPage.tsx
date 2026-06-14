@@ -325,8 +325,6 @@ export function ChatbotPage() {
 
   const isReady    = !!(statusData as any)?.ready;
   const isBuilding = !!(statusData as any)?.building;
-  const docCount   = (statusData as any)?.documents ?? 0;
-  const sources    = (statusData as any)?.sources   ?? [];
 
   // ── Conversation list ──────────────────────────────────────────────────────
   const { data: conversations = [] } = useQuery({
@@ -453,14 +451,6 @@ export function ChatbotPage() {
     setLoadingConvId(id);
   }
 
-  // ── Status pill ────────────────────────────────────────────────────────────
-  const pillClass = isReady ? 'success' : isBuilding ? 'warning' : 'neutral';
-  const pillLabel = isReady
-    ? `Ready · ${docCount.toLocaleString()} documents indexed`
-    : isBuilding
-    ? 'Indexing datasets — please wait…'
-    : 'Initializing…';
-
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
@@ -471,13 +461,12 @@ export function ChatbotPage() {
       <div className="page-header">
         <div>
           <p className="page-kicker">AI-Powered Analysis</p>
-          <h1>IDP Copilot</h1>
+          <h1>IDP Chatbot</h1>
           <p>
             Ask questions about suppliers, transactions, contracts, and risk
-            metrics — grounded exclusively in your datasets.
+            metrics
           </p>
         </div>
-        <span className={`status-pill ${pillClass}`}>{pillLabel}</span>
       </div>
 
       {/* ─── Body: sidebar + main ────────────────────────────────────────── */}
@@ -626,20 +615,6 @@ export function ChatbotPage() {
 
         {/* ── Main content ─────────────────────────────────────────────────── */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
-
-          {/* Index summary */}
-          {isReady && sources.length > 0 && (
-            <div className="section-card" style={{ padding: '14px 20px' }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-                <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600 }}>
-                  INDEXED SOURCES
-                </span>
-                {sources.map((s: string, i: number) => (
-                  <SourceTag key={i} label={s} />
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Suggested questions (shown before first message in a new chat) */}
           {messages.length === 0 && !isLoadingConv && (

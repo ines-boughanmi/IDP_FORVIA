@@ -13,7 +13,7 @@ export function RiskDistributionChart({ data }: { data: Array<{ name: string; co
               <Cell key={entry.name} fill={COLORS[index % COLORS.length]} />
             ))}
           </Pie>
-          <Tooltip formatter={(value, name, item) => [String(value), titleCase(String(name))]} />
+          <Tooltip formatter={(value, name) => [String(value), titleCase(String(name))]} />
           <Legend />
         </PieChart>
       </ResponsiveContainer>

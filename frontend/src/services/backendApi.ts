@@ -17,12 +17,6 @@ export type LoginPayload = {
   password: string;
 };
 
-export type RegisterPayload = {
-  username: string;
-  email: string;
-  password: string;
-};
-
 export async function login(payload: LoginPayload) {
   return request<{ access_token: string; token_type: string }>('/auth/login', {
     method: 'POST',
@@ -32,13 +26,6 @@ export async function login(payload: LoginPayload) {
 
 export async function getCurrentUser() {
   return request<{ user: { id: number; username: string; email: string; role: string } }>('/auth/me');
-}
-
-export async function register(payload: RegisterPayload) {
-  return request<{ user: { id: number; username: string; email: string; role: string } }>('/auth/register', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  }, false);
 }
 
 export async function fetchExecutiveDashboard() {
@@ -96,12 +83,6 @@ export async function fetchChatbotQuery(question: string, conversationId?: numbe
   }>('/api/chatbot/query', {
     method: 'POST',
     body: JSON.stringify({ question, conversation_id: conversationId ?? null }),
-  });
-}
-
-export async function triggerChatbotReindex() {
-  return request<{ status: string; message: string }>('/api/chatbot/reindex', {
-    method: 'POST',
   });
 }
 

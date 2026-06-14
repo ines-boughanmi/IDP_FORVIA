@@ -69,11 +69,6 @@ export function Sidebar() {
           </NavLink>
         </div>
       </nav>
-
-      <div className="sidebar-footer">
-        <span className="status-pill success">Backend connected</span>
-        <p>Phase 4B frontend prepared for future chatbot integration.</p>
-      </div>
     </aside>
   );
 }

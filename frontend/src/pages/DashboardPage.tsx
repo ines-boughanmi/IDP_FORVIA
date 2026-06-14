@@ -57,12 +57,12 @@ export function DashboardPage() {
         <div>
           <p className="page-kicker">Executive overview</p>
           <h1>Dashboard</h1>
-          <p>Enterprise KPIs and risk intelligence from the Phase 3 product datasets.</p>
+          <p>Enterprise KPIs and risk intelligence across the monitoring platform.</p>
         </div>
       </div>
 
       <section className="stat-grid">
-        <StatCard label="Total Transactions" value={dashboard?.total_transactions ?? 0} hint="Loaded from executive API" />
+        <StatCard label="Total Transactions" value={dashboard?.total_transactions ?? 0} hint="All monitored transactions" />
         <StatCard label="Total Suppliers" value={dashboard?.total_suppliers ?? 0} hint="Unique supplier count" />
         <StatCard label="Average Transaction Risk" value={formatNumber(dashboard?.avg_transaction_risk, 2)} hint="Weighted by current engine" />
         <StatCard label="Average Supplier Risk" value={formatNumber(dashboard?.avg_supplier_risk, 2)} hint="Supplier intelligence score" />
@@ -105,7 +105,7 @@ export function DashboardPage() {
         </SectionCard>
       </section>
 
-      <SectionCard title="Executive spotlight" description="Use this summary in future board-level reporting and chatbot narratives.">
+      <SectionCard title="Executive spotlight" description="Key highlights for board-level reporting and risk reviews.">
         <div className="spotlight-grid">
           <div className="spotlight-box">
             <span>Top risk supplier</span>

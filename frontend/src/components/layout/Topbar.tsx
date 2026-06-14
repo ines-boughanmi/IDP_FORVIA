@@ -8,7 +8,7 @@ export function Topbar() {
   return (
     <header className="topbar">
       <div>
-        <p className="topbar-kicker">Enterprise Business API Layer</p>
+        <p className="topbar-kicker">IDP Risk Monitoring Platform</p>
         <h2 className="topbar-title">Executive monitoring and investigation suite</h2>
       </div>
 

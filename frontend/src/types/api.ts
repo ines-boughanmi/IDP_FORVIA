@@ -1,9 +1,3 @@
-export type ApiEnvelope<T> = {
-  status: 'success' | 'error';
-  data: T;
-  metadata: Record<string, unknown>;
-};
-
 export type DashboardMetrics = {
   total_transactions: number;
   total_suppliers: number;

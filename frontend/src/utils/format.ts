@@ -14,10 +14,6 @@ export function formatNumber(value: unknown, fractionDigits = 0): string {
   });
 }
 
-export function formatCurrency(value: unknown): string {
-  return `$${formatNumber(value, 2)}`;
-}
-
 export function formatPercent(value: unknown, fractionDigits = 1): string {
   return `${formatNumber(value, fractionDigits)}%`;
 }

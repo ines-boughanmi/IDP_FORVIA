@@ -48,8 +48,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     bootstrap();
-    return () => {
-    };
   }, []);
 
   useEffect(() => {
