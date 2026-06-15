@@ -211,6 +211,10 @@ select {
   gap: 22px;
 }
 
+.page-stack > * {
+  min-width: 0;
+}
+
 .page-header {
   display: flex;
   justify-content: space-between;
