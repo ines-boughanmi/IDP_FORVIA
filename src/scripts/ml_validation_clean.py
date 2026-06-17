@@ -316,54 +316,49 @@ print(f"     Train: {train_rf:.4f}")
 print(f"     Test: {test_rf:.4f}")
 
 # XGBoost
-try:
-    import xgboost as xgb
-    print(f"  3. XGBoost")
-    xg = xgb.XGBClassifier(n_estimators=100, max_depth=6, learning_rate=0.1, random_state=42, n_jobs=-1, eval_metric='logloss')
-    xg.fit(X_train_balanced, y_train_balanced)
-    models['xgboost'] = xg
-    
-    cv_xg = cross_val_score(xg, X_train_balanced, y_train_balanced, cv=5, scoring='f1_macro')
-    train_xg = xg.score(X_train_balanced, y_train_balanced)
-    test_xg = xg.score(X_test_scaled, y_test)
-    
-    results['xgboost'] = {
-        'cv_mean': float(cv_xg.mean()),
-        'cv_std': float(cv_xg.std()),
-        'train_score': float(train_xg),
-        'test_score': float(test_xg),
-    }
-    
-    print(f"     CV F1: {cv_xg.mean():.4f} (+/- {cv_xg.std():.4f})")
-    print(f"     Train: {train_xg:.4f}")
-    print(f"     Test: {test_xg:.4f}")
-except Exception as e:
-    print(f"  3. XGBoost - NOT AVAILABLE ({str(e)[:50]})")
+import xgboost as xgb
+print(f"  3. XGBoost")
+xg = xgb.XGBClassifier(n_estimators=100, max_depth=6, learning_rate=0.1,
+                        random_state=42, n_jobs=-1, eval_metric='mlogloss',
+                        verbosity=0)
+xg.fit(X_train_balanced, y_train_balanced)
+models['xgboost'] = xg
+
+cv_xg = cross_val_score(xg, X_train_balanced, y_train_balanced, cv=5, scoring='f1_macro')
+train_xg = xg.score(X_train_balanced, y_train_balanced)
+test_xg = xg.score(X_test_scaled, y_test)
+
+results['xgboost'] = {
+    'cv_mean': float(cv_xg.mean()),
+    'cv_std': float(cv_xg.std()),
+    'train_score': float(train_xg),
+    'test_score': float(test_xg),
+}
+print(f"     CV F1: {cv_xg.mean():.4f} (+/- {cv_xg.std():.4f})")
+print(f"     Train: {train_xg:.4f}")
+print(f"     Test: {test_xg:.4f}")
 
 # LightGBM
-try:
-    import lightgbm as lgb
-    print(f"  4. LightGBM")
-    lgb_model = lgb.LGBMClassifier(n_estimators=100, max_depth=6, learning_rate=0.1, random_state=42, n_jobs=-1)
-    lgb_model.fit(X_train_balanced, y_train_balanced)
-    models['lightgbm'] = lgb_model
-    
-    cv_lgb = cross_val_score(lgb_model, X_train_balanced, y_train_balanced, cv=5, scoring='f1_macro')
-    train_lgb = lgb_model.score(X_train_balanced, y_train_balanced)
-    test_lgb = lgb_model.score(X_test_scaled, y_test)
-    
-    results['lightgbm'] = {
-        'cv_mean': float(cv_lgb.mean()),
-        'cv_std': float(cv_lgb.std()),
-        'train_score': float(train_lgb),
-        'test_score': float(test_lgb),
-    }
-    
-    print(f"     CV F1: {cv_lgb.mean():.4f} (+/- {cv_lgb.std():.4f})")
-    print(f"     Train: {train_lgb:.4f}")
-    print(f"     Test: {test_lgb:.4f}")
-except Exception as e:
-    print(f"  4. LightGBM - NOT AVAILABLE ({str(e)[:50]})")
+import lightgbm as lgb
+print(f"  4. LightGBM")
+lgb_model = lgb.LGBMClassifier(n_estimators=100, max_depth=6, learning_rate=0.1,
+                                random_state=42, n_jobs=-1, verbose=-1)
+lgb_model.fit(X_train_balanced, y_train_balanced)
+models['lightgbm'] = lgb_model
+
+cv_lgb = cross_val_score(lgb_model, X_train_balanced, y_train_balanced, cv=5, scoring='f1_macro')
+train_lgb = lgb_model.score(X_train_balanced, y_train_balanced)
+test_lgb = lgb_model.score(X_test_scaled, y_test)
+
+results['lightgbm'] = {
+    'cv_mean': float(cv_lgb.mean()),
+    'cv_std': float(cv_lgb.std()),
+    'train_score': float(train_lgb),
+    'test_score': float(test_lgb),
+}
+print(f"     CV F1: {cv_lgb.mean():.4f} (+/- {cv_lgb.std():.4f})")
+print(f"     Train: {train_lgb:.4f}")
+print(f"     Test: {test_lgb:.4f}")
 
 # STEP 8: SAVE MODELS
 print("\nSTEP 8: SAVING MODELS")
@@ -382,6 +377,74 @@ print(f"  [OK] scaler")
 with open(MODEL_DIR / "label_encoder.json", 'w') as f:
     json.dump(label_encoder, f)
 print(f"  [OK] label_encoder")
+
+# STEP 8b: UNSUPERVISED MODELS — Isolation Forest + K-Means
+print("\nSTEP 8b: UNSUPERVISED MODELS")
+print("-"*80)
+
+from sklearn.ensemble import IsolationForest
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score, davies_bouldin_score
+
+unsupervised_results = {}
+
+# --- Isolation Forest ---
+print("\n  5. Isolation Forest (anomaly detection)")
+for contamination in [0.03, 0.05, 0.10]:
+    iso = IsolationForest(contamination=contamination, n_estimators=100,
+                          random_state=42, n_jobs=-1)
+    iso.fit(X_train_scaled)
+    preds = iso.predict(X_test_scaled)          # 1=normal, -1=anomaly
+    anomaly_rate = (preds == -1).mean()
+    avg_score = iso.score_samples(X_test_scaled).mean()
+    print(f"     contamination={contamination:.2f} -> anomaly_rate={anomaly_rate:.4f}  avg_score={avg_score:.4f}")
+
+# Retenir contamination=0.05 comme modèle final
+iso_final = IsolationForest(contamination=0.05, n_estimators=100, random_state=42, n_jobs=-1)
+iso_final.fit(X_train_scaled)
+iso_preds = iso_final.predict(X_test_scaled)
+iso_scores = iso_final.score_samples(X_test_scaled)
+
+unsupervised_results['isolation_forest'] = {
+    'contamination': 0.05,
+    'n_estimators': 100,
+    'anomaly_rate_test': float((iso_preds == -1).mean()),
+    'avg_anomaly_score': float(iso_scores.mean()),
+    'n_anomalies_detected': int((iso_preds == -1).sum()),
+}
+print(f"     [OK] Final model: contamination=0.05 — {(iso_preds==-1).sum():,} anomalies on test set")
+
+with open(MODEL_DIR / "isolation_forest_model.pkl", 'wb') as f:
+    pickle.dump(iso_final, f)
+print(f"     [OK] isolation_forest_model.pkl saved")
+
+# --- K-Means ---
+print("\n  6. K-Means (supplier segmentation)")
+k_scores = {}
+for k in range(2, 7):
+    km = KMeans(n_clusters=k, random_state=42, n_init=10)
+    labels_km = km.fit_predict(X_train_scaled)
+    sil = silhouette_score(X_train_scaled, labels_km, sample_size=10000, random_state=42)
+    db  = davies_bouldin_score(X_train_scaled, labels_km)
+    k_scores[k] = {'silhouette': round(sil, 4), 'davies_bouldin': round(db, 4), 'inertia': round(km.inertia_, 2)}
+    print(f"     K={k}: Silhouette={sil:.4f}  Davies-Bouldin={db:.4f}  Inertia={km.inertia_:.0f}")
+
+# Choisir le K avec le meilleur Silhouette
+best_k = max(k_scores, key=lambda k: k_scores[k]['silhouette'])
+km_final = KMeans(n_clusters=best_k, random_state=42, n_init=10)
+km_final.fit(X_train_scaled)
+
+unsupervised_results['kmeans'] = {
+    'best_k': best_k,
+    'k_scores': k_scores,
+    'best_silhouette': k_scores[best_k]['silhouette'],
+    'best_davies_bouldin': k_scores[best_k]['davies_bouldin'],
+}
+print(f"     [OK] Best K={best_k} (Silhouette={k_scores[best_k]['silhouette']:.4f})")
+
+with open(MODEL_DIR / "kmeans_model.pkl", 'wb') as f:
+    pickle.dump(km_final, f)
+print(f"     [OK] kmeans_model.pkl saved")
 
 # STEP 9: PREDICTIONS
 print("\nSTEP 9: PREDICTIONS & EVALUATION")
@@ -434,6 +497,7 @@ validation_report = {
     'model_results': results,
     'best_model': best_model_name,
     'best_test_score': float(results[best_model_name]['test_score']),
+    'unsupervised_models': unsupervised_results,
 }
 
 report_path = DATA_OUTPUT_DIR / "ml_validation_report.json"
@@ -465,10 +529,16 @@ print(f"  Data file: {latest_file.name}")
 print(f"  Samples: {len(df):,}")
 print(f"  Features: {X.shape[1]}")
 print(f"  Labels: {len(label_encoder)}")
-print(f"  Models: {len(models)}")
-print(f"  Best model: {best_model_name}")
-print(f"  Test F1: {results[best_model_name]['test_score']:.4f}")
-print(f"  Fraud cases: {fraud_count:,} ({fraud_pct:.2f}%)")
+print(f"\n  --- Supervised models ---")
+for name, res in results.items():
+    print(f"  {name:25s}: CV F1={res['cv_mean']:.4f}  Test F1={res['test_score']:.4f}")
+print(f"  Best model: {best_model_name} (Test F1={results[best_model_name]['test_score']:.4f})")
+print(f"\n  --- Unsupervised models ---")
+iso_r = unsupervised_results['isolation_forest']
+km_r  = unsupervised_results['kmeans']
+print(f"  Isolation Forest         : contamination={iso_r['contamination']}  anomalies={iso_r['n_anomalies_detected']:,}")
+print(f"  K-Means                  : best K={km_r['best_k']}  Silhouette={km_r['best_silhouette']:.4f}")
+print(f"\n  Fraud cases: {fraud_count:,} ({fraud_pct:.2f}%)")
 
 if fraud_count == 0:
     print(f"\n[CRITICAL ISSUE]")

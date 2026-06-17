@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-06-17T12:00:27.988624",
+  "timestamp": "2026-06-17T12:52:56.600006",
   "data_file": "documents_with_labels_and_features_features_20260525_162427.csv",
   "total_samples": 294722,
   "train_samples": 235777,
@@ -19,7 +19,9 @@
   },
   "models_trained": [
     "logistic_regression",
-    "random_forest"
+    "random_forest",
+    "xgboost",
+    "lightgbm"
   ],
   "model_results": {
     "logistic_regression": {
@@ -33,8 +35,61 @@
       "cv_std": 0.0009007605841289208,
       "train_score": 0.9540469734829018,
       "test_score": 0.9537195690898295
+    },
+    "xgboost": {
+      "cv_mean": 0.9918181245645507,
+      "cv_std": 0.0010589879857775253,
+      "train_score": 0.9922779067500753,
+      "test_score": 0.9834082619390958
+    },
+    "lightgbm": {
+      "cv_mean": 0.9949448771371572,
+      "cv_std": 0.0017734439289378114,
+      "train_score": 0.9955194433122448,
+      "test_score": 0.9891933158028671
     }
   },
-  "best_model": "random_forest",
-  "best_test_score": 0.9537195690898295
+  "best_model": "lightgbm",
+  "best_test_score": 0.9891933158028671,
+  "unsupervised_models": {
+    "isolation_forest": {
+      "contamination": 0.05,
+      "n_estimators": 100,
+      "anomaly_rate_test": 0.04896089575027568,
+      "avg_anomaly_score": -0.4339872495975214,
+      "n_anomalies_detected": 2886
+    },
+    "kmeans": {
+      "best_k": 5,
+      "k_scores": {
+        "2": {
+          "silhouette": 0.1738,
+          "davies_bouldin": 2.1134,
+          "inertia": 4372831.67
+        },
+        "3": {
+          "silhouette": 0.1747,
+          "davies_bouldin": 1.4158,
+          "inertia": 4092538.09
+        },
+        "4": {
+          "silhouette": 0.1865,
+          "davies_bouldin": 1.2667,
+          "inertia": 3656398.34
+        },
+        "5": {
+          "silhouette": 0.1873,
+          "davies_bouldin": 1.0168,
+          "inertia": 3376106.62
+        },
+        "6": {
+          "silhouette": 0.1442,
+          "davies_bouldin": 1.1966,
+          "inertia": 3181437.71
+        }
+      },
+      "best_silhouette": 0.1873,
+      "best_davies_bouldin": 1.0168
+    }
+  }
 }
