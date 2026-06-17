@@ -59,7 +59,6 @@ export function TransactionsPage() {
           <input className="input" placeholder="Max score" value={draft.maxScore} onChange={(event) => setDraft((current) => ({ ...current, maxScore: event.target.value }))} />
           <input className="input" type="date" value={draft.dateFrom} onChange={(event) => setDraft((current) => ({ ...current, dateFrom: event.target.value }))} />
           <input className="input" type="date" value={draft.dateTo} onChange={(event) => setDraft((current) => ({ ...current, dateTo: event.target.value }))} />
-          <input className="input wide" placeholder="Keyword" value={draft.keyword} onChange={(event) => setDraft((current) => ({ ...current, keyword: event.target.value }))} />
           <button className="btn btn-primary" type="button" onClick={() => { setFilters(draft); setPage(1); }}>
             Apply filters
           </button>
