@@ -81,13 +81,45 @@ print(f"[OK] Label column identified: {label_col}")
 # Find feature columns
 id_cols = [col for col in df.columns if 'id' in col.lower()]
 metadata_cols = [col for col in df.columns if col in ['po_number', 'ir_number', 'gr_number', 'supplier', 'date', 'created_at']]
-exclude_cols = id_cols + metadata_cols + [label_col]
 
-feature_cols = [col for col in df.columns 
+# Exclude features that directly encode the label (GR/IR imbalance = rule that defines anomaly classes)
+# and supplier_anomaly_rate which is computed using the target on the full dataset
+leaky_features = [
+    # GR/IR imbalance features — directly define the anomaly class (rule engine logic)
+    'gr_ir_difference',
+    'abs_gr_ir_diff',
+    'invoice_ratio',
+    'gr_ir_gap_pct',
+    'blocked_amount',
+    'amount_difference',
+    'abs_amount_diff',
+    # Binary document-existence flags — also define the class deterministically
+    'has_ir',
+    'has_gr',
+    # Raw GR/IR amounts — a depth-2 tree can reconstruct the rule engine perfectly from these
+    'gr_amount',
+    'ir_amount',
+    'total_gr_amount',
+    'total_ir_amount',
+    'amount_|_wrbtr_sum',
+    'invoice_value_|_reewr_sum',
+    'amount_per_qty',
+    # Target-encoded features (computed from label on full dataset)
+    'supplier_anomaly_rate',
+    'supplier_high_risk',
+    'is_anomaly',
+    'anomaly_score',
+    'risk_score',
+]
+
+exclude_cols = id_cols + metadata_cols + [label_col] + leaky_features
+
+feature_cols = [col for col in df.columns
                 if df[col].dtype in ['int64', 'float64', 'int32', 'float32']
                 and col not in exclude_cols]
 
-print(f"[OK] Identified {len(feature_cols)} numeric features")
+print(f"[OK] Identified {len(feature_cols)} numeric features (leaky features excluded)")
+print(f"     Excluded leaky: {[f for f in leaky_features if f in df.columns]}")
 
 # STEP 3: DATA QUALITY ANALYSIS
 print("\nSTEP 3: DATA QUALITY ANALYSIS")
@@ -156,8 +188,8 @@ print(f"[OK] Features saved:")
 print(f"  X: {X_file.name} ({X_file.stat().st_size / 1024 / 1024:.1f} MB)")
 print(f"  y: {y_file.name} ({y_file.stat().st_size / 1024:.1f} KB)")
 
-# STEP 6: FEATURE ANALYSIS
-print("\nSTEP 6: FEATURE ANALYSIS")
+# STEP 6: FEATURE ANALYSIS + LEAKAGE CHECK
+print("\nSTEP 6: FEATURE ANALYSIS + LEAKAGE CHECK")
 print("-"*80)
 
 print(f"\nFeature Statistics:")
@@ -165,6 +197,23 @@ print(f"  Samples: {X.shape[0]:,}")
 print(f"  Features: {X.shape[1]}")
 print(f"  Mean std: {X.std().mean():.4f}")
 print(f"  Min std: {X.std().min():.4f}")
+
+# Leakage check: flag features with correlation > 0.7 with the label
+print(f"\nLeakage Check (correlation feature/label > 0.7):")
+y_numeric = pd.factorize(y)[0]
+high_corr = []
+for col in X.columns:
+    corr = abs(np.corrcoef(X[col].fillna(0), y_numeric)[0, 1])
+    if corr > 0.7:
+        high_corr.append((col, round(corr, 4)))
+if high_corr:
+    print(f"  [WARNING] {len(high_corr)} potentially leaky features detected:")
+    for col, corr in sorted(high_corr, key=lambda x: -x[1]):
+        print(f"      {col:40s} corr={corr:.4f}  -> EXCLUDED")
+    X = X.drop(columns=[c for c, _ in high_corr])
+    print(f"  New X shape after exclusion: {X.shape}")
+else:
+    print(f"  [OK] No high-correlation features detected (threshold=0.7)")
 print(f"  Max std: {X.std().max():.4f}")
 
 print(f"\nTop 10 Features by Variance:")
@@ -192,7 +241,7 @@ for label, code in sorted(label_encoder.items(), key=lambda x: x[1]):
     count = (y == label).sum()
     print(f"  {label:30s} -> {code}  ({count:6,})")
 
-# Split
+# Split BEFORE any further preprocessing to avoid data leakage
 X_train, X_test, y_train, y_test = train_test_split(
     X, y_encoded, test_size=0.2, random_state=42, stratify=y_encoded
 )
@@ -201,10 +250,10 @@ print(f"\nTrain/Test Split:")
 print(f"  Training: {len(X_train):,} ({len(X_train)/len(X)*100:.1f}%)")
 print(f"  Test: {len(X_test):,} ({len(X_test)/len(X)*100:.1f}%)")
 
-# Scale
+# Scale fitted on train only — never on test
 scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
-X_test_scaled = scaler.transform(X_test)
+X_test_scaled = scaler.transform(X_test)  # transform only, no fit
 
 # SMOTE
 try:
@@ -247,7 +296,7 @@ print(f"     Test: {test_lr:.4f}")
 
 # Random Forest
 print(f"  2. Random Forest")
-rf = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1, max_depth=15)
+rf = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1, max_depth=6, min_samples_leaf=20)
 rf.fit(X_train_balanced, y_train_balanced)
 models['random_forest'] = rf
 

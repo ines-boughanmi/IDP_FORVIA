@@ -1,10 +1,10 @@
 {
-  "timestamp": "2026-05-27T21:50:12.425426",
+  "timestamp": "2026-06-17T12:00:27.988624",
   "data_file": "documents_with_labels_and_features_features_20260525_162427.csv",
   "total_samples": 294722,
   "train_samples": 235777,
   "test_samples": 58945,
-  "features": 40,
+  "features": 21,
   "label_column": "anomaly_type",
   "labels": {
     "ACCOUNTING": 0,
@@ -19,36 +19,22 @@
   },
   "models_trained": [
     "logistic_regression",
-    "random_forest",
-    "xgboost",
-    "lightgbm"
+    "random_forest"
   ],
   "model_results": {
     "logistic_regression": {
-      "cv_mean": 0.9999985232277803,
-      "cv_std": 2.953544439421307e-06,
-      "train_score": 1.0,
-      "test_score": 1.0
+      "cv_mean": 0.9271933175478096,
+      "cv_std": 0.0007313163835579936,
+      "train_score": 0.9273275561620207,
+      "test_score": 0.8674696751208754
     },
     "random_forest": {
-      "cv_mean": 1.0,
-      "cv_std": 0.0,
-      "train_score": 1.0,
-      "test_score": 1.0
-    },
-    "xgboost": {
-      "cv_mean": 1.0,
-      "cv_std": 0.0,
-      "train_score": 1.0,
-      "test_score": 1.0
-    },
-    "lightgbm": {
-      "cv_mean": 1.0,
-      "cv_std": 0.0,
-      "train_score": 1.0,
-      "test_score": 1.0
+      "cv_mean": 0.9528462903318214,
+      "cv_std": 0.0009007605841289208,
+      "train_score": 0.9540469734829018,
+      "test_score": 0.9537195690898295
     }
   },
-  "best_model": "logistic_regression",
-  "best_test_score": 1.0
+  "best_model": "random_forest",
+  "best_test_score": 0.9537195690898295
 }
