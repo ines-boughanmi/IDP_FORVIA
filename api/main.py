@@ -23,10 +23,11 @@ from fastapi import HTTPException
 
 from .services.data_loader import DataLoaderService
 from .services.rag_engine import RAGEngine
+from .services.ml_service import MLService
 from .routers import (
     transactions, suppliers, risk, analytics, search,
     executive, alerts, supplier360, transaction360,
-    analytics_v2, chatbot,
+    analytics_v2, chatbot, ml_predictions,
 )
 
 logging.basicConfig(
@@ -76,6 +77,11 @@ def create_app() -> FastAPI:
     if not data_loader.load_all():
         logger.error("DataLoader: one or more datasets failed to load")
     app.state.data_loader = data_loader
+
+    # ── ML models (load once, predict on all transactions) ────────────────────
+    ml_service = MLService()
+    ml_service.load(data_loader.transactions_df)
+    app.state.ml_service = ml_service
 
     # ── RAG engine (build in background) ─────────────────────────────────────
     rag_engine = RAGEngine(
@@ -155,6 +161,7 @@ def create_app() -> FastAPI:
     app.include_router(transaction360.router,  prefix="/api")
     app.include_router(analytics_v2.router,    prefix="/api")
     app.include_router(chatbot.router,         prefix="/api")
+    app.include_router(ml_predictions.router,  prefix="/api")
 
     @app.get("/healthz")
     def healthz():

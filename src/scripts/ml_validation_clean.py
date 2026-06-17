@@ -79,7 +79,11 @@ if not label_col:
 print(f"[OK] Label column identified: {label_col}")
 
 # Find feature columns
+# purchasing_document_|_ebeln is the SAP document number = transaction_id in the API
+# keep it aside for joining — do NOT include it as a feature
+doc_id_col = 'purchasing_document_|_ebeln'
 id_cols = [col for col in df.columns if 'id' in col.lower()]
+id_cols += [doc_id_col] if doc_id_col in df.columns else []
 metadata_cols = [col for col in df.columns if col in ['po_number', 'ir_number', 'gr_number', 'supplier', 'date', 'created_at']]
 
 # Exclude features that directly encode the label (GR/IR imbalance = rule that defines anomaly classes)
@@ -178,11 +182,17 @@ if constant_features:
 print("\nSTEP 5: SAVING PREPARED FEATURES")
 print("-"*80)
 
-X_file = PROCESSED_DATA_DIR / "ml_features_phase2_X.csv"
-y_file = PROCESSED_DATA_DIR / "ml_features_phase2_y.csv"
+X_file    = PROCESSED_DATA_DIR / "ml_features_phase2_X.csv"
+y_file    = PROCESSED_DATA_DIR / "ml_features_phase2_y.csv"
+ids_file  = PROCESSED_DATA_DIR / "ml_features_phase2_ids.csv"
 
 X.to_csv(X_file, index=False)
 y.to_csv(y_file, index=False, header=False)
+
+# Save SAP document IDs aligned with X rows — used by the API to join predictions
+if doc_id_col in df.columns:
+    df[[doc_id_col]].rename(columns={doc_id_col: 'transaction_id'}).to_csv(ids_file, index=False)
+    print(f"  IDs: {ids_file.name} saved ({len(df):,} rows)")
 
 print(f"[OK] Features saved:")
 print(f"  X: {X_file.name} ({X_file.stat().st_size / 1024 / 1024:.1f} MB)")
