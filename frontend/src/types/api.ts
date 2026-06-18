@@ -74,6 +74,7 @@ export type TransactionSummary = {
   risk_level: string;
   explanation?: string;
   amount_gap_pct?: number;
+  days_in_system?: number;
   created_timestamp?: string;
 };
 
